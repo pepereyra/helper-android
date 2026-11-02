@@ -88,3 +88,15 @@ interface TimeSource {
 interface IdGenerator {
     fun newId(): String
 }
+
+sealed interface LoginResult {
+    data class LoggedIn(val session: Session) : LoginResult
+    data object InvalidCredentials : LoginResult
+    data object NoConnection : LoginResult
+}
+
+interface AuthRepository {
+    suspend fun login(email: String, password: String): LoginResult
+    /** Cierra sesión y borra los datos locales del usuario. */
+    suspend fun logout()
+}
