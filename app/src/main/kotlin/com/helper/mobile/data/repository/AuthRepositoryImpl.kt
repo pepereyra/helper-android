@@ -40,6 +40,22 @@ class AuthRepositoryImpl @Inject constructor(
             is ApiResult.HttpError -> if (result.status >= 500) LoginResult.NoConnection else LoginResult.InvalidCredentials
         }
 
+    /**
+     * Solo en builds de prueba y hasta que el backend tenga login (B7): entra con el id de un cliente o un
+     * mecánico que ya existe en el backend. El mecánico se toma como aprobado porque hoy el servidor no verifica.
+     */
+    suspend fun devLogin(role: Role, userId: String): Session {
+        val session = Session(
+            userId = userId,
+            role = role,
+            verification = if (role == Role.MECHANIC) VerificationStatus.APPROVED else null,
+            accessToken = "",
+            expiresAt = Instant.now().plusSeconds(7 * 24 * 3600),
+        )
+        store.save(session, "")
+        return session
+    }
+
     override suspend fun logout() {
         store.clear()
         withContext(Dispatchers.IO) { database.clearAllTables() }

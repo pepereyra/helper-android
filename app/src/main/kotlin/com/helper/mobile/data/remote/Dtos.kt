@@ -46,16 +46,26 @@ data class AssistanceResponse(
     val id: String,
     val status: String,
     val assignedMechanicId: String? = null,
+    val offersExpireAt: String? = null,
 )
 
+/** GET /api/dispatches/offers: trae la habilidad requerida y la distancia en km. */
 @Serializable
 data class OfferResponse(
     val assistanceId: String,
-    val problemType: String,
+    val mechanicId: String? = null,
+    val requiredSkill: String,
     val vehicleType: String,
-    val distanceMeters: Double,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val distanceKm: Double,
+    val ranking: Int? = null,
     val expiresAt: String,
 )
+
+/** Identidad del mecánico en accept y decline hasta que llegue el login (B7). */
+@Serializable
+data class MechanicRef(val mechanicId: String)
 
 /** Cuerpo de error Problem Details que ya devuelve el backend. */
 @Serializable
