@@ -20,6 +20,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
+import com.helper.mobile.BuildConfig
+import com.helper.mobile.data.repository.AuthRepositoryImpl
+import com.helper.mobile.domain.model.Role
 import com.helper.mobile.domain.repository.LoginResult
 import com.helper.mobile.domain.usecase.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,17 +41,33 @@ data class LoginUiState(
     val password: String = "",
     val loading: Boolean = false,
     val error: String? = null,
+    val devRole: Role = Role.RIDER,
+    val devUserId: String = "",
 )
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val login: LoginUseCase,
+    private val auth: AuthRepositoryImpl,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state
 
     fun onEmail(value: String) = _state.update { it.copy(email = value, error = null) }
     fun onPassword(value: String) = _state.update { it.copy(password = value, error = null) }
+
+    fun onDevRole(role: Role) = _state.update { it.copy(devRole = role) }
+    fun onDevUserId(value: String) = _state.update { it.copy(devUserId = value.trim(), error = null) }
+
+    /** Entrada de prueba hasta que el backend tenga login: usa el id de un cliente o mecánico existente. */
+    fun devLogin() {
+        val current = _state.value
+        if (current.devUserId.isBlank()) {
+            _state.update { it.copy(error = "Ingresá el id del cliente o del mecánico.") }
+            return
+        }
+        viewModelScope.launch { auth.devLogin(current.devRole, current.devUserId) }
+    }
 
     fun submit() {
         val current = _state.value
@@ -99,5 +122,36 @@ fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
             enabled = !state.loading,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (state.loading) "Ingresando…" else "Ingresar") }
+
+        if (BuildConfig.DEBUG) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("Probar sin cuenta", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Hasta que el backend tenga login, entrá con el id de un cliente o un mecánico que ya exista.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.devRole == Role.RIDER,
+                    onClick = { viewModel.onDevRole(Role.RIDER) },
+                    label = { Text("Repartidor") },
+                )
+                FilterChip(
+                    selected = state.devRole == Role.MECHANIC,
+                    onClick = { viewModel.onDevRole(Role.MECHANIC) },
+                    label = { Text("Mecánico") },
+                )
+            }
+            OutlinedTextField(
+                value = state.devUserId,
+                onValueChange = viewModel::onDevUserId,
+                label = { Text(if (state.devRole == Role.RIDER) "Id del cliente" else "Id del mecánico") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(onClick = viewModel::devLogin, modifier = Modifier.fillMaxWidth()) {
+                Text("Entrar para probar")
+            }
+        }
     }
 }
