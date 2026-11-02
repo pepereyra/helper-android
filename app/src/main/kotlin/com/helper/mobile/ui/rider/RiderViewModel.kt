@@ -45,7 +45,7 @@ data class RequestForm(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RiderViewModel @Inject constructor(
-    vehicles: VehicleRepository,
+    vehicleRepository: VehicleRepository,
     connectivity: ConnectivityObserver,
     assistances: AssistanceRepository,
     private val problemsCatalog: ProblemCatalogRepository,
@@ -61,7 +61,7 @@ class RiderViewModel @Inject constructor(
 ) : ViewModel() {
 
     val vehicles: StateFlow<List<Vehicle>> =
-        vehicles.observeVehicles().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        vehicleRepository.observeVehicles().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val online: StateFlow<Boolean> =
         connectivity.isOnline.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
