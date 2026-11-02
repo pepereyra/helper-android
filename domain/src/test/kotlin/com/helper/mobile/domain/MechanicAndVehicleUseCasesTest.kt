@@ -109,3 +109,26 @@ class MechanicAndVehicleUseCasesTest {
         }
     }
 }
+
+class LoginUseCaseTest {
+    private class FakeAuth : com.helper.mobile.domain.repository.AuthRepository {
+        var calls = 0
+        override suspend fun login(email: String, password: String): com.helper.mobile.domain.repository.LoginResult {
+            calls++
+            return com.helper.mobile.domain.repository.LoginResult.InvalidCredentials
+        }
+        override suspend fun logout() = Unit
+    }
+
+    @Test
+    fun `valida el email antes de llamar al servidor`() = runTest {
+        val auth = FakeAuth()
+        val login = com.helper.mobile.domain.usecase.LoginUseCase(auth)
+
+        assertEquals(com.helper.mobile.domain.usecase.LoginUseCase.Result.InvalidEmail, login("pedro", "x"))
+        assertEquals(com.helper.mobile.domain.usecase.LoginUseCase.Result.EmptyPassword, login("pedro@mail.com", ""))
+        assertEquals(0, auth.calls)
+        login(" Pedro@Mail.com ", "secreta")
+        assertEquals(1, auth.calls)
+    }
+}

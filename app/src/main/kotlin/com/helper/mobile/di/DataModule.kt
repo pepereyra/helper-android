@@ -15,12 +15,14 @@ import com.helper.mobile.data.location.FusedLocationProvider
 import com.helper.mobile.data.remote.AuthInterceptor
 import com.helper.mobile.data.remote.HelperApi
 import com.helper.mobile.data.repository.AssistanceRepositoryImpl
+import com.helper.mobile.data.repository.AuthRepositoryImpl
 import com.helper.mobile.data.repository.OfferRepositoryImpl
 import com.helper.mobile.data.repository.ProblemCatalog
 import com.helper.mobile.data.repository.VehicleRepositoryImpl
 import com.helper.mobile.data.session.SessionStore
 import com.helper.mobile.data.sync.WorkManagerScheduler
 import com.helper.mobile.domain.repository.AssistanceRepository
+import com.helper.mobile.domain.repository.AuthRepository
 import com.helper.mobile.domain.repository.LocationProvider
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.repository.PendingSendScheduler
@@ -97,6 +99,9 @@ object DataModule {
 abstract class RepositoryModule {
     @Binds
     abstract fun session(impl: SessionStore): SessionRepository
+
+    @Binds
+    abstract fun auth(impl: AuthRepositoryImpl): AuthRepository
 
     @Binds
     abstract fun vehicles(impl: VehicleRepositoryImpl): VehicleRepository
