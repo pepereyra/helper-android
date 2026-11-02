@@ -61,6 +61,7 @@ sealed interface AcceptResult {
     /** El servidor no lo deja trabajar todavía (403, cuenta sin aprobar). */
     data object NotAllowed : AcceptResult
     data object NoConnection : AcceptResult
+    data class Failed(val reason: String) : AcceptResult
 }
 
 interface OfferRepository {

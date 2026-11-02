@@ -24,8 +24,9 @@ class RegisterVehicleUseCase @Inject constructor(
     ): Result {
         if (brand.isBlank()) return Result.Invalid("brand")
         if (model.isBlank()) return Result.Invalid("model")
-        // La patente solo tiene sentido para motos.
+        // La patente solo tiene sentido para motos, y para motos el backend la exige.
         val normalizedPlate = plate?.trim()?.uppercase()?.takeIf { it.isNotEmpty() && type == VehicleType.MOTORCYCLE }
+        if (type == VehicleType.MOTORCYCLE && normalizedPlate == null) return Result.Invalid("plate")
         val vehicle = Vehicle(
             id = ids.newId(),
             type = type,
