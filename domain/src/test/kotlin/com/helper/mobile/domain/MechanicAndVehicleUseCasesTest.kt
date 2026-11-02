@@ -7,6 +7,7 @@ import com.helper.mobile.domain.model.Role
 import com.helper.mobile.domain.model.Session
 import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.model.VerificationStatus
+import com.helper.mobile.domain.policy.PendingRequestPolicy
 import com.helper.mobile.domain.repository.AcceptResult
 import com.helper.mobile.domain.usecase.ObserveAssistanceUseCase
 import com.helper.mobile.domain.usecase.RegisterVehicleUseCase
@@ -50,7 +51,7 @@ class MechanicAndVehicleUseCasesTest {
     }
 
     @Test
-    fun `la patente solo se guarda para motos`() = runTest {
+    fun `la patente solo se guarda para motos y es obligatoria para ellas`() = runTest {
         val vehicles = FakeVehicles()
         val register = RegisterVehicleUseCase(vehicles, SequentialIds())
 
@@ -60,6 +61,7 @@ class MechanicAndVehicleUseCasesTest {
         assertNull(bike.vehicle.plate)
         assertEquals("A123BCD", moto.vehicle.plate)
         assertEquals(RegisterVehicleUseCase.Result.Invalid("brand"), register(VehicleType.E_BIKE, " ", "C20", null, null))
+        assertEquals(RegisterVehicleUseCase.Result.Invalid("plate"), register(VehicleType.MOTORCYCLE, "Honda", "Wave", null, " "))
     }
 
     @Test
@@ -75,15 +77,35 @@ class MechanicAndVehicleUseCasesTest {
             ),
         )
 
-        ObserveAssistanceUseCase(assistances, time)("a1").test {
+        ObserveAssistanceUseCase(assistances, PendingRequestPolicy(), time)("a1").test {
             val tracking = awaitItem()!!
             assertTrue(tracking.isStale)
             assertEquals(AssistanceStatus.MATCHED, tracking.assistance.status)
         }
 
         assistances.saveLocal(assistances.find("a1")!!.copy(lastSyncedAt = time.now()))
-        ObserveAssistanceUseCase(assistances, time)("a1").test {
+        ObserveAssistanceUseCase(assistances, PendingRequestPolicy(), time)("a1").test {
             assertFalse(awaitItem()!!.isStale)
+        }
+    }
+
+    @Test
+    fun `un pedido sin enviar se muestra vencido apenas pasan 15 minutos, aunque el worker no haya corrido`() = runTest {
+        val time = FakeTime()
+        val assistances = FakeAssistances()
+        assistances.saveLocal(
+            Assistance(
+                localId = "a1", remoteId = null, vehicleId = "v1", vehicleType = VehicleType.BICYCLE,
+                problemCode = "FLAT_TIRE", description = null, location = OBELISCO,
+                confirmedAt = time.now(), status = AssistanceStatus.NOT_SENT,
+            ),
+        )
+        time.advance(Duration.ofMinutes(15))
+
+        ObserveAssistanceUseCase(assistances, PendingRequestPolicy(), time)("a1").test {
+            val tracking = awaitItem()!!
+            assertTrue(tracking.isExpired)
+            assertFalse(tracking.isStale)
         }
     }
 }

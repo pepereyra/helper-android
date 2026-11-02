@@ -51,10 +51,10 @@ class FakeVehicles(vararg initial: Vehicle) : VehicleRepository {
 
 class FakeProblems : ProblemCatalogRepository {
     override suspend fun problems(): List<ProblemType> = listOf(
-        ProblemType("FLAT_TIRE", "Pinchadura", VehicleType.entries.toSet()),
-        ProblemType("CHAIN", "Cadena", setOf(VehicleType.BICYCLE, VehicleType.E_BIKE, VehicleType.MOTORCYCLE)),
-        ProblemType("BATTERY", "Batería", setOf(VehicleType.E_BIKE, VehicleType.MOTORCYCLE)),
-        ProblemType("WONT_START", "No arranca", setOf(VehicleType.MOTORCYCLE)),
+        ProblemType("FLAT_TIRE", "Pinchadura", "TIRE_REPAIR", VehicleType.entries.toSet()),
+        ProblemType("CHAIN", "Cadena", "CHAIN_REPAIR", setOf(VehicleType.BICYCLE, VehicleType.E_BIKE, VehicleType.MOTORCYCLE)),
+        ProblemType("BATTERY", "Batería", "ELECTRICAL", setOf(VehicleType.E_BIKE, VehicleType.MOTORCYCLE)),
+        ProblemType("WONT_START", "No arranca", "ENGINE", setOf(VehicleType.MOTORCYCLE)),
     )
 }
 

@@ -16,6 +16,8 @@ data class Vehicle(
 data class ProblemType(
     val code: String,
     val label: String,
+    /** Habilidad que tiene que tener el mecánico; el backend la usa para elegir a quién ofrecer el pedido. */
+    val requiredSkill: String,
     val vehicleTypes: Set<VehicleType>,
 ) {
     fun appliesTo(type: VehicleType): Boolean = type in vehicleTypes
