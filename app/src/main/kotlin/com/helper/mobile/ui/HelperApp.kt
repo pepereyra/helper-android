@@ -66,11 +66,11 @@ class AppViewModel @Inject constructor(
         },
         profileChecks,
     ) { session, _ -> session }
-        .flatMapLatest { session ->
+        .flatMapLatest<Session?, AppState> { session ->
             if (session == null) {
-                flowOf(AppState.LoggedOut)
+                flowOf<AppState>(AppState.LoggedOut)
             } else {
-                flow {
+                flow<AppState> {
                     emit(AppState.Loading)
                     emit(
                         when (profiles.check(session)) {
