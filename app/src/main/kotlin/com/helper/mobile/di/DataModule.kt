@@ -14,6 +14,10 @@ import com.helper.mobile.data.local.VehicleDao
 import com.helper.mobile.data.location.FusedLocationProvider
 import com.helper.mobile.data.remote.AuthInterceptor
 import com.helper.mobile.data.remote.HelperApi
+import com.helper.mobile.data.remote.TokenAuthenticator
+import com.helper.mobile.data.repository.ProfileRepositoryImpl
+import com.helper.mobile.domain.repository.MechanicStatusRepository
+import com.helper.mobile.domain.repository.ProfileRepository
 import com.helper.mobile.data.repository.AssistanceRepositoryImpl
 import com.helper.mobile.data.repository.AuthRepositoryImpl
 import com.helper.mobile.data.repository.OfferRepositoryImpl
@@ -69,9 +73,10 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun okHttp(auth: AuthInterceptor): OkHttpClient =
+    fun okHttp(auth: AuthInterceptor, authenticator: TokenAuthenticator): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(auth)
+            .authenticator(authenticator)
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
                     level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
@@ -102,6 +107,12 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun auth(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    abstract fun profiles(impl: ProfileRepositoryImpl): ProfileRepository
+
+    @Binds
+    abstract fun mechanicStatus(impl: ProfileRepositoryImpl): MechanicStatusRepository
 
     @Binds
     abstract fun vehicles(impl: VehicleRepositoryImpl): VehicleRepository

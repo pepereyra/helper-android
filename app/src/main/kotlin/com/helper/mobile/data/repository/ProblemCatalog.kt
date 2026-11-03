@@ -21,7 +21,7 @@ class ProblemCatalog @Inject constructor() : ProblemCatalogRepository {
         val PROBLEMS = listOf(
             ProblemType("FLAT_TIRE", "Pinchadura", "TIRE_REPAIR", ALL),
             ProblemType("CHAIN", "Cadena", "CHAIN_REPAIR", ALL),
-            ProblemType("BRAKES", "Frenos", "BRAKES", ALL),
+            ProblemType("BRAKES", "Frenos", "BRAKE_REPAIR", ALL),
             ProblemType("WHEEL", "Rueda", "WHEEL_TRUING", setOf(BICYCLE, E_BIKE)),
             ProblemType("BATTERY", "Batería", "ELECTRICAL", setOf(E_BIKE, MOTORCYCLE)),
             ProblemType("WONT_START", "No arranca", "ENGINE", setOf(MOTORCYCLE)),
