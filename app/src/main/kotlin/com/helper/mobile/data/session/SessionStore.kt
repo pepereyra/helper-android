@@ -39,6 +39,8 @@ class SessionStore @Inject constructor(
         }
     }
 
+    suspend fun refreshToken(): String? = dataStore.data.first()[REFRESH_TOKEN]?.takeIf { it.isNotEmpty() }
+
     suspend fun clear() {
         dataStore.edit { it.clear() }
     }
