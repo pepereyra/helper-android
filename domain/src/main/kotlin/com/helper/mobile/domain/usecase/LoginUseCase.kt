@@ -15,12 +15,14 @@ class LoginUseCase @Inject constructor(
 
     suspend operator fun invoke(email: String, password: String): Result {
         val normalized = email.trim().lowercase()
-        if (!EMAIL.matches(normalized)) return Result.InvalidEmail
+        if (!isValidEmail(normalized)) return Result.InvalidEmail
         if (password.isEmpty()) return Result.EmptyPassword
         return Result.Done(auth.login(normalized, password))
     }
 
-    private companion object {
-        val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+    companion object {
+        private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+
+        fun isValidEmail(email: String): Boolean = EMAIL.matches(email)
     }
 }

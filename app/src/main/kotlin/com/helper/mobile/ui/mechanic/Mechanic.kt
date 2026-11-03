@@ -14,10 +14,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -28,6 +31,9 @@ import com.helper.mobile.data.network.ConnectivityObserver
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.repository.AcceptResult
 import com.helper.mobile.domain.repository.AuthRepository
+import com.helper.mobile.domain.repository.AvailabilityResult
+import com.helper.mobile.domain.repository.LocationProvider
+import com.helper.mobile.domain.repository.MechanicStatusRepository
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.usecase.TakeOfferUseCase
 import com.helper.mobile.ui.common.OfflineBanner
@@ -49,8 +55,13 @@ class MechanicViewModel @Inject constructor(
     private val offerRepository: OfferRepository,
     private val takeOffer: TakeOfferUseCase,
     private val auth: AuthRepository,
+    private val status: MechanicStatusRepository,
+    private val location: LocationProvider,
     connectivity: ConnectivityObserver,
 ) : ViewModel() {
+
+    val available = MutableStateFlow(false)
+    val changingAvailability = MutableStateFlow(false)
 
     val offers: StateFlow<List<Offer>> =
         offerRepository.observeOffers().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -77,10 +88,40 @@ class MechanicViewModel @Inject constructor(
                     null
                 }
                 AcceptResult.AlreadyTaken -> "Otro mecánico ya lo tomó."
-                AcceptResult.NotAllowed -> "Tu cuenta todavía no está aprobada para tomar pedidos."
+                AcceptResult.NotAllowed -> {
+                    // El servidor no lo ve aprobado: un token nuevo trae el estado real y, si hace falta,
+                    // la app vuelve a la pantalla de revisión.
+                    auth.refreshSession()
+                    "Tu cuenta todavía no está aprobada para tomar pedidos."
+                }
                 AcceptResult.NoConnection -> "Para tomar un pedido necesitás conexión."
                 is AcceptResult.Failed -> "No se pudo tomar el pedido. Probá de nuevo."
             }
+        }
+    }
+
+    /** Ponerse disponible manda la ubicación actual; el servidor responde 403 si la cuenta no está aprobada. */
+    fun setAvailable(wanted: Boolean) {
+        changingAvailability.value = true
+        viewModelScope.launch {
+            val here = location.currentLocation()
+            message.value = if (here == null) {
+                "Necesitamos tu ubicación para mostrarte pedidos cercanos."
+            } else {
+                when (val result = status.setAvailable(wanted, here)) {
+                    AvailabilityResult.Done -> {
+                        available.value = wanted
+                        null
+                    }
+                    AvailabilityResult.NotApproved -> {
+                        auth.refreshSession()
+                        "Tu cuenta todavía no está aprobada."
+                    }
+                    AvailabilityResult.NoConnection -> "Sin conexión. Probá de nuevo cuando vuelva la señal."
+                    is AvailabilityResult.Rejected -> result.reason
+                }
+            }
+            changingAvailability.value = false
         }
     }
 
@@ -104,6 +145,8 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val taken by viewModel.taken.collectAsStateWithLifecycle()
+    val available by viewModel.available.collectAsStateWithLifecycle()
+    val changing by viewModel.changingAvailability.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -114,6 +157,14 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("Pedidos cerca", style = MaterialTheme.typography.headlineSmall)
             TextButton(onClick = viewModel::logout) { Text("Salir") }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (available) "Estás disponible" else "No estás disponible", style = MaterialTheme.typography.titleMedium)
+            Switch(checked = available, onCheckedChange = viewModel::setAvailable, enabled = online && !changing)
         }
         if (!online) OfflineBanner("Sin conexión. No podés tomar pedidos hasta que vuelva la señal.")
         message?.let { Card(onClick = viewModel::dismissMessage) { Text(it, Modifier.padding(12.dp)) } }
@@ -126,7 +177,13 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
             }
         }
         if (offers.isEmpty()) {
-            Text("No hay pedidos cerca por ahora. Te mostramos los nuevos apenas aparezcan.")
+            Text(
+                if (available) {
+                    "No hay pedidos cerca por ahora. Te mostramos los nuevos apenas aparezcan."
+                } else {
+                    "Ponete disponible para recibir pedidos cercanos."
+                },
+            )
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(offers, key = { it.assistanceId }) { offer ->
@@ -148,7 +205,16 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
 
 /** Mientras un administrador no lo apruebe, el servidor no le deja ponerse disponible ni aceptar. */
 @Composable
-fun PendingVerificationScreen(rejected: Boolean, onLogout: () -> Unit) {
+fun PendingVerificationScreen(rejected: Boolean, onCheckAgain: () -> Unit, onLogout: () -> Unit) {
+    // Mientras está en revisión se renueva el token cada 30 segundos: cuando lo aprueban, la pantalla cambia sola.
+    if (!rejected) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(30_000)
+                onCheckAgain()
+            }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -166,6 +232,7 @@ fun PendingVerificationScreen(rejected: Boolean, onLogout: () -> Unit) {
                 "Estamos validando tu DNI y tu CUIT. Cuando te aprobemos vas a poder ver y tomar pedidos."
             },
         )
+        if (!rejected) OutlinedButton(onClick = onCheckAgain) { Text("Revisar ahora") }
         TextButton(onClick = onLogout) { Text("Salir") }
     }
 }

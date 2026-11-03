@@ -5,6 +5,28 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LoginRequest(val email: String, val password: String)
 
+@Serializable
+data class RegisterRequest(val email: String, val password: String, val role: String)
+
+@Serializable
+data class RefreshRequest(val refreshToken: String)
+
+@Serializable
+data class CreateClientRequest(val fullName: String, val phone: String)
+
+/** El id y el email del mecánico salen del token. */
+@Serializable
+data class CreateMechanicRequest(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val skills: Set<String>,
+    val vehicleTypes: Set<String>,
+)
+
+@Serializable
+data class AvailabilityRequest(val available: Boolean, val latitude: Double, val longitude: Double)
+
 /** Respuesta de login (B7). El rol y la verificación vienen del servidor, nunca de la app. */
 @Serializable
 data class TokenResponse(
@@ -63,9 +85,6 @@ data class OfferResponse(
     val expiresAt: String,
 )
 
-/** Identidad del mecánico en accept y decline hasta que llegue el login (B7). */
-@Serializable
-data class MechanicRef(val mechanicId: String)
 
 /** Cuerpo de error Problem Details que ya devuelve el backend. */
 @Serializable

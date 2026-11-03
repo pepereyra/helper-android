@@ -1,5 +1,6 @@
 package com.helper.mobile.domain
 
+import com.helper.mobile.domain.usecase.RegisterUseCase
 import app.cash.turbine.test
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
@@ -117,6 +118,15 @@ class LoginUseCaseTest {
             calls++
             return com.helper.mobile.domain.repository.LoginResult.InvalidCredentials
         }
+        override suspend fun register(
+            email: String,
+            password: String,
+            role: com.helper.mobile.domain.model.Role,
+        ): com.helper.mobile.domain.repository.LoginResult {
+            calls++
+            return com.helper.mobile.domain.repository.LoginResult.EmailAlreadyUsed
+        }
+        override suspend fun refreshSession() = com.helper.mobile.domain.repository.RefreshResult.REFRESHED
         override suspend fun logout() = Unit
     }
 
@@ -129,6 +139,20 @@ class LoginUseCaseTest {
         assertEquals(com.helper.mobile.domain.usecase.LoginUseCase.Result.EmptyPassword, login("pedro@mail.com", ""))
         assertEquals(0, auth.calls)
         login(" Pedro@Mail.com ", "secreta")
+        assertEquals(1, auth.calls)
+    }
+
+    @Test
+    fun `el alta valida email, largo de la contrasena y que no sea admin antes de llamar al servidor`() = runTest {
+        val auth = FakeAuth()
+        val register = RegisterUseCase(auth)
+
+        assertEquals(RegisterUseCase.Result.InvalidEmail, register("ana", "12345678", Role.RIDER))
+        assertEquals(RegisterUseCase.Result.WeakPassword, register("ana@mail.com", "1234567", Role.RIDER))
+        assertEquals(RegisterUseCase.Result.WeakPassword, register("ana@mail.com", "x".repeat(73), Role.RIDER))
+        assertEquals(RegisterUseCase.Result.RoleNotAllowed, register("ana@mail.com", "12345678", Role.ADMIN))
+        assertEquals(0, auth.calls)
+        register("Ana@Mail.com", "12345678", Role.MECHANIC)
         assertEquals(1, auth.calls)
     }
 }

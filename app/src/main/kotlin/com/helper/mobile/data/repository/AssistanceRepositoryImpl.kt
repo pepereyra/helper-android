@@ -73,8 +73,7 @@ class AssistanceRepositoryImpl @Inject constructor(
         val result = if (remoteId != null) {
             apiCall { api.cancel(remoteId) }
         } else {
-            val clientId = session.currentSession()?.userId ?: return RemoteActionResult.Rejected("Sesión vencida")
-            apiCall { api.cancelByKey(assistance.localId, clientId) }
+            apiCall { api.cancelByKey(assistance.localId) }
         }
         return when (result) {
             is ApiResult.Success -> RemoteActionResult.Done
