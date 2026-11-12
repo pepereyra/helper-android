@@ -125,11 +125,12 @@ class RiderViewModel @Inject constructor(
         val current = form.value
         val vehicleId = current.vehicleId ?: return
         val problemCode = current.problemCode ?: return
+        message.value = null
         form.update { it.copy(sending = true) }
         viewModelScope.launch {
             val here = location.currentLocation()
             if (here == null) {
-                message.value = "No pudimos leer tu ubicación. Activá el GPS y el permiso de ubicación."
+                message.value = "No pudimos leer tu ubicación. Activá la ubicación del teléfono y el permiso, y probá de nuevo."
                 form.update { it.copy(sending = false) }
                 return@launch
             }
