@@ -5,8 +5,10 @@ import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
+import com.helper.mobile.domain.model.Role
 import com.helper.mobile.domain.model.Session
 import com.helper.mobile.domain.model.Vehicle
+import com.helper.mobile.domain.model.VehicleType
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 
@@ -92,11 +94,45 @@ interface IdGenerator {
 sealed interface LoginResult {
     data class LoggedIn(val session: Session) : LoginResult
     data object InvalidCredentials : LoginResult
+    /** Al crear la cuenta: ya hay una cuenta con ese email. */
+    data object EmailAlreadyUsed : LoginResult
     data object NoConnection : LoginResult
 }
 
+enum class RefreshResult { REFRESHED, SESSION_ENDED, NO_CONNECTION }
+
 interface AuthRepository {
     suspend fun login(email: String, password: String): LoginResult
+    /** Solo RIDER o MECHANIC: los admins no se registran desde la app. */
+    suspend fun register(email: String, password: String, role: Role): LoginResult
+    /** Pide un token nuevo; trae el estado de verificación actual del mecánico. */
+    suspend fun refreshSession(): RefreshResult
     /** Cierra sesión y borra los datos locales del usuario. */
     suspend fun logout()
+}
+
+/** El perfil de repartidor o de mecánico en el backend; su id es el userId de la cuenta. */
+interface ProfileRepository {
+    enum class Check { EXISTS, MISSING, UNKNOWN }
+
+    suspend fun check(session: Session): Check
+    suspend fun createRider(fullName: String, phone: String): RemoteActionResult
+    suspend fun createMechanic(
+        name: String,
+        location: GeoPoint,
+        skills: Set<String>,
+        vehicleTypes: Set<VehicleType>,
+    ): RemoteActionResult
+}
+
+sealed interface AvailabilityResult {
+    data object Done : AvailabilityResult
+    /** 403: el servidor todavía no lo ve aprobado. */
+    data object NotApproved : AvailabilityResult
+    data object NoConnection : AvailabilityResult
+    data class Rejected(val reason: String) : AvailabilityResult
+}
+
+interface MechanicStatusRepository {
+    suspend fun setAvailable(available: Boolean, location: GeoPoint): AvailabilityResult
 }

@@ -11,8 +11,6 @@ import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.repository.AcceptResult
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.repository.RemoteActionResult
-import com.helper.mobile.domain.repository.SessionRepository
-import com.helper.mobile.data.remote.MechanicRef
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -25,16 +23,12 @@ class OfferRepositoryImpl @Inject constructor(
     private val dao: OfferDao,
     private val api: HelperApi,
     private val catalog: ProblemCatalog,
-    private val session: SessionRepository,
 ) : OfferRepository {
-
-    private suspend fun mechanicId(): String? = session.currentSession()?.userId
 
     override fun observeOffers(): Flow<List<Offer>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
     override suspend fun refresh(): RemoteActionResult {
-        val id = mechanicId() ?: return RemoteActionResult.Rejected("Sesión vencida")
-        return when (val result = apiCall { api.offers(id) }) {
+        return when (val result = apiCall { api.offers() }) {
             is ApiResult.Success -> {
                 // La oferta trae la habilidad requerida; se muestra el nombre del primer problema que la usa.
                 val labels = catalog.problems().reversed().associate { it.requiredSkill to it.label }
@@ -57,8 +51,7 @@ class OfferRepositoryImpl @Inject constructor(
     }
 
     override suspend fun accept(assistanceId: String): AcceptResult {
-        val id = mechanicId() ?: return AcceptResult.NotAllowed
-        return when (val result = apiCall { api.accept(assistanceId, MechanicRef(id)) }) {
+        return when (val result = apiCall { api.accept(assistanceId) }) {
             is ApiResult.Success -> {
                 dao.delete(assistanceId)
                 AcceptResult.Accepted
@@ -82,8 +75,7 @@ class OfferRepositoryImpl @Inject constructor(
 
     override suspend fun decline(assistanceId: String): RemoteActionResult {
         dao.delete(assistanceId)
-        val id = mechanicId() ?: return RemoteActionResult.Rejected("Sesión vencida")
-        return when (val result = apiCall { api.decline(assistanceId, MechanicRef(id)) }) {
+        return when (val result = apiCall { api.decline(assistanceId) }) {
             is ApiResult.Success -> RemoteActionResult.Done
             ApiResult.NoConnection -> RemoteActionResult.NoConnection
             is ApiResult.HttpError -> RemoteActionResult.Rejected(result.reason())

@@ -2,14 +2,19 @@ package com.helper.mobile.ui.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -20,15 +25,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedButton
-import com.helper.mobile.BuildConfig
-import com.helper.mobile.data.repository.AuthRepositoryImpl
 import com.helper.mobile.domain.model.Role
 import com.helper.mobile.domain.repository.LoginResult
 import com.helper.mobile.domain.usecase.LoginUseCase
+import com.helper.mobile.domain.usecase.RegisterUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,68 +37,91 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class LoginUiState(
+    val creatingAccount: Boolean = false,
     val email: String = "",
     val password: String = "",
+    val role: Role = Role.RIDER,
     val loading: Boolean = false,
     val error: String? = null,
-    val devRole: Role = Role.RIDER,
-    val devUserId: String = "",
 )
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val login: LoginUseCase,
-    private val auth: AuthRepositoryImpl,
+    private val register: RegisterUseCase,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state
 
     fun onEmail(value: String) = _state.update { it.copy(email = value, error = null) }
     fun onPassword(value: String) = _state.update { it.copy(password = value, error = null) }
-
-    fun onDevRole(role: Role) = _state.update { it.copy(devRole = role) }
-    fun onDevUserId(value: String) = _state.update { it.copy(devUserId = value.trim(), error = null) }
-
-    /** Entrada de prueba hasta que el backend tenga login: usa el id de un cliente o mecánico existente. */
-    fun devLogin() {
-        val current = _state.value
-        if (current.devUserId.isBlank()) {
-            _state.update { it.copy(error = "Ingresá el id del cliente o del mecánico.") }
-            return
-        }
-        viewModelScope.launch { auth.devLogin(current.devRole, current.devUserId) }
-    }
+    fun onRole(role: Role) = _state.update { it.copy(role = role) }
+    fun toggleMode() = _state.update { it.copy(creatingAccount = !it.creatingAccount, error = null) }
 
     fun submit() {
         val current = _state.value
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            val error = when (val result = login(current.email, current.password)) {
-                LoginUseCase.Result.InvalidEmail -> "Revisá el email."
-                LoginUseCase.Result.EmptyPassword -> "Ingresá tu contraseña."
-                is LoginUseCase.Result.Done -> when (result.login) {
-                    is LoginResult.LoggedIn -> null
-                    LoginResult.InvalidCredentials -> "Email o contraseña incorrectos."
-                    LoginResult.NoConnection -> "No hay conexión. Para ingresar la primera vez necesitás internet."
+            val error = if (current.creatingAccount) {
+                when (val result = register(current.email, current.password, current.role)) {
+                    RegisterUseCase.Result.InvalidEmail -> "Revisá el email."
+                    RegisterUseCase.Result.WeakPassword -> "La contraseña tiene que tener entre 8 y 72 caracteres."
+                    RegisterUseCase.Result.RoleNotAllowed -> "Ese tipo de cuenta no se puede crear desde la app."
+                    is RegisterUseCase.Result.Done -> result.login.message()
+                }
+            } else {
+                when (val result = login(current.email, current.password)) {
+                    LoginUseCase.Result.InvalidEmail -> "Revisá el email."
+                    LoginUseCase.Result.EmptyPassword -> "Ingresá tu contraseña."
+                    is LoginUseCase.Result.Done -> result.login.message()
                 }
             }
             _state.update { it.copy(loading = false, error = error) }
         }
     }
+
+    private fun LoginResult.message(): String? = when (this) {
+        is LoginResult.LoggedIn -> null
+        LoginResult.InvalidCredentials -> "Email o contraseña incorrectos."
+        LoginResult.EmailAlreadyUsed -> "Ya hay una cuenta con ese email. Ingresá con tu contraseña."
+        LoginResult.NoConnection -> "No hay conexión. Para ingresar la primera vez necesitás internet."
+    }
 }
 
-/** El rol (repartidor o mecánico) lo define la cuenta en el servidor, no se elige acá. */
+/** El rol se elige al crear la cuenta y después lo manda siempre el servidor en el token. */
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("helper", style = MaterialTheme.typography.headlineLarge)
         Text("Un mecánico hasta donde te quedaste", style = MaterialTheme.typography.bodyLarge)
+        if (state.creatingAccount) {
+            Text("¿Cómo vas a usar Helper?", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.role == Role.RIDER,
+                    onClick = { viewModel.onRole(Role.RIDER) },
+                    label = { Text("Necesito ayuda (repartidor)") },
+                )
+                FilterChip(
+                    selected = state.role == Role.MECHANIC,
+                    onClick = { viewModel.onRole(Role.MECHANIC) },
+                    label = { Text("Soy mecánico") },
+                )
+            }
+            if (state.role == Role.MECHANIC) {
+                Text(
+                    "Tu cuenta queda en revisión hasta que la aprobemos. Recién ahí vas a ver pedidos.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         OutlinedTextField(
             value = state.email,
             onValueChange = viewModel::onEmail,
@@ -110,7 +133,7 @@ fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
         OutlinedTextField(
             value = state.password,
             onValueChange = viewModel::onPassword,
-            label = { Text("Contraseña") },
+            label = { Text(if (state.creatingAccount) "Contraseña (8 caracteres o más)" else "Contraseña") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -121,37 +144,17 @@ fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
             onClick = viewModel::submit,
             enabled = !state.loading,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (state.loading) "Ingresando…" else "Ingresar") }
-
-        if (BuildConfig.DEBUG) {
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            Text("Probar sin cuenta", style = MaterialTheme.typography.titleMedium)
+        ) {
             Text(
-                "Hasta que el backend tenga login, entrá con el id de un cliente o un mecánico que ya exista.",
-                style = MaterialTheme.typography.bodySmall,
+                when {
+                    state.loading -> "Un momento…"
+                    state.creatingAccount -> "Crear cuenta"
+                    else -> "Ingresar"
+                },
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = state.devRole == Role.RIDER,
-                    onClick = { viewModel.onDevRole(Role.RIDER) },
-                    label = { Text("Repartidor") },
-                )
-                FilterChip(
-                    selected = state.devRole == Role.MECHANIC,
-                    onClick = { viewModel.onDevRole(Role.MECHANIC) },
-                    label = { Text("Mecánico") },
-                )
-            }
-            OutlinedTextField(
-                value = state.devUserId,
-                onValueChange = viewModel::onDevUserId,
-                label = { Text(if (state.devRole == Role.RIDER) "Id del cliente" else "Id del mecánico") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedButton(onClick = viewModel::devLogin, modifier = Modifier.fillMaxWidth()) {
-                Text("Entrar para probar")
-            }
+        }
+        TextButton(onClick = viewModel::toggleMode, modifier = Modifier.fillMaxWidth()) {
+            Text(if (state.creatingAccount) "Ya tengo cuenta" else "Crear una cuenta")
         }
     }
 }
