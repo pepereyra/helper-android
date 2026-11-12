@@ -17,7 +17,7 @@ class TokenAuthenticator @Inject constructor(
     private val auth: Lazy<AuthRepositoryImpl>,
 ) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
-        if (response.request.url.encodedPath.startsWith("/api/auth/")) return null
+        if (response.request.url.encodedPath.contains("/api/auth/")) return null
         if (response.priorResponse != null) return null
         val stale = response.request.header("Authorization")?.removePrefix("Bearer ")
         val fresh = runBlocking { auth.get().accessTokenAfterRefresh(stale) } ?: return null
