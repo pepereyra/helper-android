@@ -18,7 +18,9 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Emulador: 10.0.2.2 es la máquina donde corre el docker compose del backend.
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
+        // Para un teléfono real o el despliegue público: ./gradlew assembleDebug -PapiBaseUrl=http://192.168.0.10:8080/
+        val apiBaseUrl = (project.findProperty("apiBaseUrl") as String?) ?: "http://10.0.2.2:8080/"
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
