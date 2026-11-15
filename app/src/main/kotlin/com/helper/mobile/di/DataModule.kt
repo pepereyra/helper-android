@@ -23,6 +23,7 @@ import com.helper.mobile.data.repository.AssistanceRepositoryImpl
 import com.helper.mobile.data.repository.AuthRepositoryImpl
 import com.helper.mobile.data.repository.NearbyMechanicsRepositoryImpl
 import com.helper.mobile.data.repository.OfferRepositoryImpl
+import com.helper.mobile.data.repository.RouteRepositoryImpl
 import com.helper.mobile.data.repository.ProblemCatalog
 import com.helper.mobile.data.repository.VehicleRepositoryImpl
 import com.helper.mobile.data.session.SessionStore
@@ -34,6 +35,7 @@ import com.helper.mobile.domain.repository.NearbyMechanicsRepository
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.repository.PendingSendScheduler
 import com.helper.mobile.domain.repository.ProblemCatalogRepository
+import com.helper.mobile.domain.repository.RouteRepository
 import com.helper.mobile.domain.repository.SessionRepository
 import com.helper.mobile.domain.repository.VehicleRepository
 import dagger.Binds
@@ -133,6 +135,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun nearbyMechanics(impl: NearbyMechanicsRepositoryImpl): NearbyMechanicsRepository
+
+    @Binds
+    abstract fun routes(impl: RouteRepositoryImpl): RouteRepository
 
     @Binds
     abstract fun location(impl: FusedLocationProvider): LocationProvider

@@ -28,6 +28,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.util.GeoPoint as OsmPoint
 
 /** Un punto en el mapa. [isMain] es el del usuario (o el pedido, para el mecánico): va en naranja. */
@@ -42,7 +43,13 @@ private const val SINGLE_PIN_ZOOM = 16.0
  * [description] es lo que lee TalkBack, porque el mapa en sí no es accesible.
  */
 @Composable
-fun PinsMap(pins: List<MapPin>, description: String, modifier: Modifier = Modifier, height: Dp = 220.dp) {
+fun PinsMap(
+    pins: List<MapPin>,
+    description: String,
+    modifier: Modifier = Modifier,
+    height: Dp = 220.dp,
+    route: List<GeoPoint> = emptyList(),
+) {
     val context = LocalContext.current
     val map = remember { createMap(context) }
 
@@ -64,7 +71,7 @@ fun PinsMap(pins: List<MapPin>, description: String, modifier: Modifier = Modifi
 
     AndroidView(
         factory = { map },
-        update = { view -> show(view, pins) },
+        update = { view -> show(view, pins, route) },
         modifier = modifier
             .fillMaxWidth()
             .height(height)
@@ -83,8 +90,18 @@ private fun createMap(context: Context): MapView {
     }
 }
 
-private fun show(map: MapView, pins: List<MapPin>) {
-    map.overlays.removeAll { it is Marker }
+private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>) {
+    map.overlays.removeAll { it is Marker || it is Polyline }
+    if (route.size >= 2) {
+        map.overlays.add(
+            Polyline(map).apply {
+                setPoints(route.map { it.toOsm() })
+                outlinePaint.color = BLUE
+                outlinePaint.strokeWidth = 12f
+                outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+            },
+        )
+    }
     // El pin principal va último para que quede arriba si se superpone con otro.
     pins.sortedBy { it.isMain }.forEach { pin ->
         map.overlays.add(
@@ -97,22 +114,23 @@ private fun show(map: MapView, pins: List<MapPin>) {
         )
     }
     map.invalidate()
-    if (pins.isEmpty()) return
+    val framed = pins.map { it.point } + route
+    if (framed.isEmpty()) return
     // El encuadre necesita el tamaño de la vista: si todavía no se midió, se hace después del primer layout.
     if (map.width == 0 || map.height == 0) {
-        map.addOnFirstLayoutListener { _, _, _, _, _ -> frame(map, pins) }
+        map.addOnFirstLayoutListener { _, _, _, _, _ -> frame(map, framed) }
     } else {
-        frame(map, pins)
+        frame(map, framed)
     }
 }
 
-private fun frame(map: MapView, pins: List<MapPin>) {
-    if (pins.size == 1) {
+private fun frame(map: MapView, points: List<GeoPoint>) {
+    if (points.size == 1) {
         map.controller.setZoom(SINGLE_PIN_ZOOM)
-        map.controller.setCenter(pins.first().point.toOsm())
+        map.controller.setCenter(points.first().toOsm())
         return
     }
-    val box = BoundingBox.fromGeoPoints(pins.map { it.point.toOsm() })
+    val box = BoundingBox.fromGeoPoints(points.map { it.toOsm() })
     // Margen para que los pines no queden pegados al borde; con pines muy juntos no se acerca de más.
     map.zoomToBoundingBox(box.increaseByScale(1.6f), false, 48)
     if (map.zoomLevelDouble > 17.0) map.controller.setZoom(17.0)

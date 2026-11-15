@@ -94,8 +94,11 @@ class AssistanceRepositoryImpl @Inject constructor(
             is ApiResult.Success -> {
                 val body = result.body
                 val mechanicId = body.assignedMechanicId ?: local.mechanicId
-                // El nombre y la ubicación del mecánico se piden una sola vez, cuando aparece o cambia.
-                val profile = if (mechanicId != null && (mechanicId != local.mechanicId || local.mechanicName == null)) {
+                // Mientras el mecánico viene se pide su perfil en cada actualización: así su pin se mueve en el mapa.
+                val onTheWay = body.status == "MATCHED" || body.status == "IN_PROGRESS"
+                val profile = if (mechanicId != null &&
+                    (onTheWay || mechanicId != local.mechanicId || local.mechanicName == null)
+                ) {
                     (apiCall { api.mechanic(mechanicId) } as? ApiResult.Success)?.body
                 } else {
                     null

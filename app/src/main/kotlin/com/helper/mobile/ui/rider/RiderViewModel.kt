@@ -1,5 +1,7 @@
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.repository.RouteRepository
+import com.helper.mobile.domain.model.Route
 import kotlinx.coroutines.Job
 import com.helper.mobile.domain.repository.NearbyMechanicsRepository
 import com.helper.mobile.domain.model.NearbyMechanic
@@ -56,6 +58,7 @@ class RiderViewModel @Inject constructor(
     private val location: LocationProvider,
     private val auth: AuthRepository,
     private val nearbyMechanics: NearbyMechanicsRepository,
+    private val routes: RouteRepository,
     private val registerVehicle: RegisterVehicleUseCase,
     private val requestAssistance: RequestAssistanceUseCase,
     private val sendPending: SendPendingAssistanceUseCase,
@@ -82,6 +85,10 @@ class RiderViewModel @Inject constructor(
     val nearby = MutableStateFlow<List<NearbyMechanic>>(emptyList())
     private var nearbyJob: Job? = null
 
+    /** Ruta del mecánico asignado hasta el repartidor; se vuelve a pedir cuando el mecánico se mueve. */
+    val mechanicRoute = MutableStateFlow<Route?>(null)
+    private var routeFrom: GeoPoint? = null
+
     /** Pedido que se está mostrando. Se conserva aunque termine, hasta que el repartidor lo cierre. */
     private val shownLocalId = MutableStateFlow<String?>(null)
 
@@ -106,6 +113,7 @@ class RiderViewModel @Inject constructor(
                 val current = tracking.value?.assistance
                 if (current != null && current.remoteId != null && !current.status.isFinal && online.value) {
                     refreshAssistance(current.localId)
+                    updateMechanicRoute()
                 }
                 delay(5_000)
             }
@@ -134,6 +142,23 @@ class RiderViewModel @Inject constructor(
                 }
                 delay(15_000)
             }
+        }
+    }
+
+    private suspend fun updateMechanicRoute() {
+        val assistance = tracking.value?.assistance ?: return
+        val onTheWay = assistance.status == AssistanceStatus.MATCHED || assistance.status == AssistanceStatus.IN_PROGRESS
+        val mechanicAt = assistance.mechanic?.location
+        if (!onTheWay || mechanicAt == null) {
+            mechanicRoute.value = null
+            routeFrom = null
+            return
+        }
+        val lastFrom = routeFrom
+        if (lastFrom != null && lastFrom.distanceTo(mechanicAt) < ROUTE_REFRESH_METERS && mechanicRoute.value != null) return
+        routes.route(mechanicAt, assistance.location, assistance.vehicleType)?.let {
+            mechanicRoute.value = it
+            routeFrom = mechanicAt
         }
     }
 
@@ -244,3 +269,6 @@ class RiderViewModel @Inject constructor(
         viewModelScope.launch { auth.logout() }
     }
 }
+
+private const val ROUTE_REFRESH_METERS = 40.0
+

@@ -119,3 +119,23 @@ data class ProblemDetail(
     val detail: String? = null,
     val code: String? = null,
 )
+
+/** GET /api/routes: la línea para el mapa ([latitud, longitud]) y los pasos en castellano. */
+@Serializable
+data class RouteResponse(
+    val source: String,
+    val distanceKm: Double,
+    val durationMinutes: Int,
+    val points: List<List<Double>>,
+    val steps: List<RouteStepResponse> = emptyList(),
+)
+
+@Serializable
+data class RouteStepResponse(
+    val instruction: String,
+    val street: String? = null,
+    val distanceMeters: Int,
+    val durationSeconds: Int,
+    val latitude: Double,
+    val longitude: Double,
+)
