@@ -2,6 +2,20 @@
 
 package com.helper.mobile.ui.mechanic
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import kotlinx.coroutines.Job
+import com.helper.mobile.domain.repository.RouteRepository
+import com.helper.mobile.domain.model.progress
+import com.helper.mobile.domain.model.isOffRoute
+import com.helper.mobile.domain.model.Route
+import com.helper.mobile.domain.model.NavigationProgress
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import com.helper.mobile.ui.common.asEta
 import com.helper.mobile.ui.common.PinsMap
 import com.helper.mobile.ui.common.MapPin
@@ -62,6 +76,7 @@ class MechanicViewModel @Inject constructor(
     private val auth: AuthRepository,
     private val status: MechanicStatusRepository,
     private val location: LocationProvider,
+    private val routes: RouteRepository,
     connectivity: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -78,6 +93,11 @@ class MechanicViewModel @Inject constructor(
     /** Dónde estaba el mecánico al ponerse disponible; es el otro pin del mapa de cada pedido. */
     val myLocation = MutableStateFlow<GeoPoint?>(null)
 
+    /** Ruta hasta el repartidor del pedido tomado y cómo viene el mecánico en ella. */
+    val route = MutableStateFlow<Route?>(null)
+    val progress = MutableStateFlow<NavigationProgress?>(null)
+    private var navigation: Job? = null
+
     init {
         // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta.
         viewModelScope.launch {
@@ -93,6 +113,7 @@ class MechanicViewModel @Inject constructor(
             message.value = when (takeOffer(offer.assistanceId)) {
                 AcceptResult.Accepted -> {
                     taken.value = offer
+                    startNavigation(offer)
                     null
                 }
                 AcceptResult.AlreadyTaken -> "Otro mecánico ya lo tomó."
@@ -132,6 +153,41 @@ class MechanicViewModel @Inject constructor(
             }
             changingAvailability.value = false
         }
+    }
+
+    /**
+     * Mientras va hacia el repartidor: cada 5 segundos lee el GPS y actualiza el próximo paso; cada 15 manda su
+     * ubicación al servidor (así el repartidor lo ve moverse) y pide la ruta de nuevo si se desvió.
+     */
+    private fun startNavigation(offer: Offer) {
+        val destination = offer.location ?: return
+        navigation?.cancel()
+        navigation = viewModelScope.launch {
+            var tick = 0
+            while (isActive) {
+                val here = location.currentLocation()
+                if (here != null) {
+                    myLocation.value = here
+                    val current = route.value
+                    if (online.value && (current == null || current.isOffRoute(here) || (!current.byRoad && tick % 6 == 0))) {
+                        routes.route(here, destination, offer.vehicleType)?.let { route.value = it }
+                    }
+                    if (online.value && tick % 3 == 0) status.setAvailable(available.value, here)
+                    progress.value = route.value?.progress(here, destination)
+                    if (progress.value?.arrived == true) break
+                }
+                tick++
+                delay(5_000)
+            }
+        }
+    }
+
+    /** Cierra el pedido tomado en la pantalla y vuelve a la lista. */
+    fun finishTrip() {
+        navigation?.cancel()
+        taken.value = null
+        route.value = null
+        progress.value = null
     }
 
     fun pass(offer: Offer) {
@@ -179,15 +235,10 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
         if (!online) OfflineBanner("Sin conexión. No podés tomar pedidos hasta que vuelva la señal.")
         message?.let { Card(onClick = viewModel::dismissMessage) { Text(it, Modifier.padding(12.dp)) } }
         taken?.let {
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Tomaste el pedido", style = MaterialTheme.typography.titleMedium)
-                    Text("${it.problemLabel} · ${it.vehicleType.label()}")
-                    Text(it.howFar())
-                    OfferMap(it, me, height = 260.dp)
-                }
-            }
+            // La lista de pasos puede ser larga: el viaje se desplaza solo (la lista de ofertas no se muestra).
+            Column(Modifier.verticalScroll(rememberScrollState())) { TripCard(it, me, viewModel) }
         }
+        if (taken != null) return@Column
         if (offers.isEmpty()) {
             Text(
                 if (available) {
@@ -263,5 +314,59 @@ private fun OfferMap(offer: Offer, me: GeoPoint?, height: Dp = 180.dp) {
     val rider = offer.location ?: return
     val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), me?.let { MapPin(it, "Vos") })
     PinsMap(pins, description = "Mapa: dónde está el repartidor", height = height)
+}
+
+/** El pedido tomado: la indicación que sigue, el mapa con la ruta y la lista de pasos. Todo sin salir de la app. */
+@Composable
+private fun TripCard(offer: Offer, me: GeoPoint?, viewModel: MechanicViewModel) {
+    val route by viewModel.route.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    var showSteps by remember { mutableStateOf(false) }
+    val current = route
+    val now = progress
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${offer.problemLabel} · ${offer.vehicleType.label()}", style = MaterialTheme.typography.titleMedium)
+            when {
+                now?.arrived == true -> Text("Llegaste. El repartidor está acá.", style = MaterialTheme.typography.headlineSmall)
+                now?.nextStep != null -> {
+                    val inMeters = now.metersToNextStep?.let { "En ${it.asDistance()}: " } ?: ""
+                    Text(
+                        inMeters + now.nextStep?.instruction.orEmpty(),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+                current != null && !current.byRoad -> Text("Andá hacia el pin naranja. No pudimos calcular la ruta por calle.")
+                else -> Text("Calculando la ruta…")
+            }
+            current?.takeIf { now?.arrived != true }?.let {
+                val left = now?.metersToDestination ?: it.distanceMeters
+                val minutes = now?.minutesLeft?.takeIf { m -> m > 0 } ?: it.durationMinutes
+                Text("Faltan ${left.asDistance()} · unos ${minutes.asEta()}", style = MaterialTheme.typography.bodyMedium)
+            }
+            val rider = offer.location
+            if (rider != null) {
+                val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), me?.let { MapPin(it, "Vos") })
+                PinsMap(pins, description = "Mapa con la ruta hasta el repartidor", height = 300.dp, route = current?.points.orEmpty())
+            }
+            if (current != null && current.steps.isNotEmpty()) {
+                TextButton(onClick = { showSteps = !showSteps }) {
+                    Text(if (showSteps) "Ocultar los pasos" else "Ver todos los pasos (${current.steps.size})")
+                }
+                if (showSteps) {
+                    current.steps.forEachIndexed { index, step ->
+                        val isNext = step == now?.nextStep
+                        Text(
+                            "${index + 1}. ${step.instruction}" + if (step.distanceMeters > 0) " (${step.distanceMeters.asDistance()})" else "",
+                            style = if (isNext) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+            OutlinedButton(onClick = viewModel::finishTrip) { Text("Cerrar") }
+        }
+    }
 }
 

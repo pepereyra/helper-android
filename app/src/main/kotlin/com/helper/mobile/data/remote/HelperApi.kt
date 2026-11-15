@@ -77,6 +77,16 @@ interface HelperApi {
     @POST("assistance/api/assistances/cancel-by-key")
     suspend fun cancelByKey(@Header("Idempotency-Key") idempotencyKey: String): Response<AssistanceResponse>
 
+    /** Por calle con pasos si el servidor tiene OpenRouteService; si no, línea recta sin pasos. */
+    @GET("dispatch/api/routes")
+    suspend fun route(
+        @Query("fromLatitude") fromLatitude: Double,
+        @Query("fromLongitude") fromLongitude: Double,
+        @Query("toLatitude") toLatitude: Double,
+        @Query("toLongitude") toLongitude: Double,
+        @Query("vehicleType") vehicleType: String? = null,
+    ): Response<RouteResponse>
+
     @GET("dispatch/api/dispatches/offers")
     suspend fun offers(): Response<List<OfferResponse>>
 

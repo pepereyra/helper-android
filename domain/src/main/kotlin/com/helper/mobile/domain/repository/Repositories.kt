@@ -4,6 +4,7 @@ import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.NearbyMechanic
+import com.helper.mobile.domain.model.Route
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
 import com.helper.mobile.domain.model.Role
@@ -77,6 +78,11 @@ interface OfferRepository {
 interface NearbyMechanicsRepository {
     /** Mecánicos disponibles cerca de [point], del más cercano al más lejano; null si no hay conexión o falló. */
     suspend fun near(point: GeoPoint, vehicleType: VehicleType?): List<NearbyMechanic>?
+}
+
+interface RouteRepository {
+    /** Ruta para ir de [from] a [to] con ese vehículo; null si no hay conexión. */
+    suspend fun route(from: GeoPoint, to: GeoPoint, vehicleType: VehicleType?): Route?
 }
 
 interface LocationProvider {

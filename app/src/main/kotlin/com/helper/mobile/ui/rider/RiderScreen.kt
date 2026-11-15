@@ -248,21 +248,24 @@ private fun RemoteTracking(tracking: Tracking, online: Boolean, viewModel: Rider
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(name, style = MaterialTheme.typography.titleMedium)
-                    mechanic.etaMinutes?.let {
+                    val route by viewModel.mechanicRoute.collectAsStateWithLifecycle()
+                    // La ruta se recalcula mientras viene, así que su tiempo es más actual que el de la asignación.
+                    (route?.durationMinutes ?: mechanic.etaMinutes)?.let {
                         Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
                     }
                     val details = listOfNotNull(
-                        mechanic.distanceMeters?.let { "a ${it.asDistance()}" },
+                        (route?.distanceMeters ?: mechanic.distanceMeters)?.let { "a ${it.asDistance()}" },
                         mechanic.rating?.let { "%.1f de 5".format(it) },
                     ).joinToString(" · ")
                     if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            val route by viewModel.mechanicRoute.collectAsStateWithLifecycle()
             val pins = listOfNotNull(
                 MapPin(assistance.location, "Vos", isMain = true),
                 mechanic.location?.let { MapPin(it, name) },
             )
-            PinsMap(pins, description = "Mapa: vos y $name")
+            PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
         AssistanceStatus.COMPLETED -> Text("¡Listo! El trabajo quedó terminado.")
