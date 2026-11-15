@@ -28,7 +28,21 @@ data class AssignedMechanic(
     val id: String,
     val name: String,
     val rating: Double?,
+    /** Distancia por calle que calculó el servidor al asignarlo (en línea recta si la API de rutas no respondió). */
     val distanceMeters: Double?,
+    /** Minutos estimados hasta que llegue; null si el servidor no los calculó. */
+    val etaMinutes: Int? = null,
+    /** Dónde estaba el mecánico cuando se puso disponible; sirve para ubicarlo en el mapa. */
+    val location: GeoPoint? = null,
+)
+
+/** Mecánico disponible cerca del repartidor, para mostrarlo en el mapa antes y durante la búsqueda. */
+data class NearbyMechanic(
+    val id: String,
+    val name: String,
+    val location: GeoPoint,
+    /** En línea recta. */
+    val distanceMeters: Double,
 )
 
 data class Assistance(
@@ -57,4 +71,9 @@ data class Offer(
     val vehicleType: VehicleType,
     val distanceMeters: Double,
     val expiresAt: Instant,
+    /** Dónde está el repartidor; null si el servidor no la mandó. */
+    val location: GeoPoint? = null,
+    val etaMinutes: Int? = null,
+    /** True si [distanceMeters] es por calle; false si es en línea recta. */
+    val distanceByRoad: Boolean = false,
 )

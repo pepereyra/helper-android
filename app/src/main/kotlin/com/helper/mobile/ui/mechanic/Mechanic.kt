@@ -2,6 +2,11 @@
 
 package com.helper.mobile.ui.mechanic
 
+import com.helper.mobile.ui.common.asEta
+import com.helper.mobile.ui.common.PinsMap
+import com.helper.mobile.ui.common.MapPin
+import com.helper.mobile.domain.model.GeoPoint
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,6 +75,9 @@ class MechanicViewModel @Inject constructor(
     val message = MutableStateFlow<String?>(null)
     val taken = MutableStateFlow<Offer?>(null)
 
+    /** Dónde estaba el mecánico al ponerse disponible; es el otro pin del mapa de cada pedido. */
+    val myLocation = MutableStateFlow<GeoPoint?>(null)
+
     init {
         // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta.
         viewModelScope.launch {
@@ -110,6 +118,7 @@ class MechanicViewModel @Inject constructor(
             } else {
                 when (val result = status.setAvailable(wanted, here)) {
                     AvailabilityResult.Done -> {
+                        myLocation.value = here
                         available.value = wanted
                         null
                     }
@@ -147,6 +156,7 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
     val taken by viewModel.taken.collectAsStateWithLifecycle()
     val available by viewModel.available.collectAsStateWithLifecycle()
     val changing by viewModel.changingAvailability.collectAsStateWithLifecycle()
+    val me by viewModel.myLocation.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -170,9 +180,11 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
         message?.let { Card(onClick = viewModel::dismissMessage) { Text(it, Modifier.padding(12.dp)) } }
         taken?.let {
             Card {
-                Column(Modifier.padding(16.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Tomaste el pedido", style = MaterialTheme.typography.titleMedium)
-                    Text("${it.problemLabel} · ${it.vehicleType.label()} · a ${it.distanceMeters.asDistance()}")
+                    Text("${it.problemLabel} · ${it.vehicleType.label()}")
+                    Text(it.howFar())
+                    OfferMap(it, me, height = 260.dp)
                 }
             }
         }
@@ -190,7 +202,9 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
                 Card {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(offer.problemLabel, style = MaterialTheme.typography.titleMedium)
-                        Text("${offer.vehicleType.label()} · a ${offer.distanceMeters.asDistance()}")
+                        Text(offer.vehicleType.label())
+                        Text(offer.howFar())
+                        OfferMap(offer, me)
                         Text("Disponible hasta las ${offer.expiresAt.asHour()}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { viewModel.pass(offer) }) { Text("Pasar") }
@@ -236,3 +250,18 @@ fun PendingVerificationScreen(rejected: Boolean, onCheckAgain: () -> Unit, onLog
         TextButton(onClick = onLogout) { Text("Salir") }
     }
 }
+
+/** "A 430 m por calle · unos 3 min". */
+private fun Offer.howFar(): String {
+    val distance = "A ${distanceMeters.asDistance()} " + if (distanceByRoad) "por calle" else "en línea recta"
+    return listOfNotNull(distance, etaMinutes?.let { "unos ${it.asEta()}" }).joinToString(" · ")
+}
+
+/** Mapa con el repartidor (naranja) y el mecánico (azul). Sin la ubicación del pedido no se muestra. */
+@Composable
+private fun OfferMap(offer: Offer, me: GeoPoint?, height: Dp = 180.dp) {
+    val rider = offer.location ?: return
+    val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), me?.let { MapPin(it, "Vos") })
+    PinsMap(pins, description = "Mapa: dónde está el repartidor", height = height)
+}
+

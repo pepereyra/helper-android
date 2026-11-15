@@ -2,6 +2,14 @@
 
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.ui.common.asEta
+import com.helper.mobile.ui.common.PinsMap
+import com.helper.mobile.ui.common.MapPin
+import com.helper.mobile.domain.model.GeoPoint
+import androidx.compose.runtime.LaunchedEffect
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.content.Context
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -82,7 +90,10 @@ private fun RequestForm(viewModel: RiderViewModel) {
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         viewModel.requestHelp()
+        viewModel.startNearbyUpdates()
     }
+
+    NearbyMap(viewModel)
 
     Text("¿Con qué vehículo?", style = MaterialTheme.typography.titleMedium)
     if (vehicles.isEmpty()) Text("Registrá tu vehículo para pedir ayuda.")
@@ -138,6 +149,51 @@ private fun RequestForm(viewModel: RiderViewModel) {
     }
 }
 
+/** Mapa con el repartidor y los mecánicos disponibles cerca. Pide el permiso de ubicación si todavía no lo tiene. */
+@Composable
+private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null) {
+    val context = LocalContext.current
+    val here by viewModel.myLocation.collectAsStateWithLifecycle()
+    val nearby by viewModel.nearby.collectAsStateWithLifecycle()
+    var granted by remember { mutableStateOf(hasLocationPermission(context)) }
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        granted = hasLocationPermission(context)
+    }
+    LaunchedEffect(granted) { if (granted) viewModel.startNearbyUpdates() }
+
+    if (!granted) {
+        OutlinedButton(
+            onClick = {
+                askLocation.launch(
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Ver mecánicos cerca en el mapa") }
+        return
+    }
+    val me = center ?: here
+    if (me == null) {
+        Text("Buscando tu ubicación…", style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    val pins = listOf(MapPin(me, "Vos", isMain = true)) +
+        nearby.map { MapPin(it.location, "${it.name} · a ${it.distanceMeters.asDistance()}") }
+    val summary = when (nearby.size) {
+        0 -> "No hay mecánicos disponibles cerca por ahora."
+        1 -> "1 mecánico disponible cerca."
+        else -> "${nearby.size} mecánicos disponibles cerca."
+    }
+    PinsMap(pins, description = "Mapa: vos y $summary")
+    Text(summary, style = MaterialTheme.typography.bodySmall)
+}
+
+private fun hasLocationPermission(context: Context) =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED
+
 @Composable
 private fun TrackingContent(tracking: Tracking, online: Boolean, viewModel: RiderViewModel) {
     val assistance = tracking.assistance
@@ -183,18 +239,30 @@ private fun RemoteTracking(tracking: Tracking, online: Boolean, viewModel: Rider
         tracking.lastSyncedAt?.let { Text("Actualizado a las ${it.asHour()}", style = MaterialTheme.typography.bodySmall) }
     }
     when (assistance.status) {
-        AssistanceStatus.REQUESTED -> Text("Les avisamos a los mecánicos cercanos. El primero que acepte va hacia vos.")
+        AssistanceStatus.REQUESTED -> {
+            Text("Les avisamos a los mecánicos cercanos. El primero que acepte va hacia vos.")
+            NearbyMap(viewModel, center = assistance.location)
+        }
         AssistanceStatus.MATCHED, AssistanceStatus.IN_PROGRESS -> assistance.mechanic?.let { mechanic ->
-            Card {
-                Column(Modifier.padding(16.dp)) {
-                    Text(mechanic.name.ifBlank { "Tu mecánico" }, style = MaterialTheme.typography.titleMedium)
+            val name = mechanic.name.ifBlank { "Tu mecánico" }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(name, style = MaterialTheme.typography.titleMedium)
+                    mechanic.etaMinutes?.let {
+                        Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
+                    }
                     val details = listOfNotNull(
-                        mechanic.rating?.let { "%.1f de 5".format(it) },
                         mechanic.distanceMeters?.let { "a ${it.asDistance()}" },
+                        mechanic.rating?.let { "%.1f de 5".format(it) },
                     ).joinToString(" · ")
-                    if (details.isNotEmpty()) Text(details)
+                    if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            val pins = listOfNotNull(
+                MapPin(assistance.location, "Vos", isMain = true),
+                mechanic.location?.let { MapPin(it, name) },
+            )
+            PinsMap(pins, description = "Mapa: vos y $name")
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
         AssistanceStatus.COMPLETED -> Text("¡Listo! El trabajo quedó terminado.")

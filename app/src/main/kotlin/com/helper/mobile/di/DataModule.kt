@@ -9,6 +9,7 @@ import androidx.room.Room
 import com.helper.mobile.BuildConfig
 import com.helper.mobile.data.local.AssistanceDao
 import com.helper.mobile.data.local.HelperDatabase
+import com.helper.mobile.data.local.MIGRATION_1_2
 import com.helper.mobile.data.local.OfferDao
 import com.helper.mobile.data.local.VehicleDao
 import com.helper.mobile.data.location.FusedLocationProvider
@@ -20,6 +21,7 @@ import com.helper.mobile.domain.repository.MechanicStatusRepository
 import com.helper.mobile.domain.repository.ProfileRepository
 import com.helper.mobile.data.repository.AssistanceRepositoryImpl
 import com.helper.mobile.data.repository.AuthRepositoryImpl
+import com.helper.mobile.data.repository.NearbyMechanicsRepositoryImpl
 import com.helper.mobile.data.repository.OfferRepositoryImpl
 import com.helper.mobile.data.repository.ProblemCatalog
 import com.helper.mobile.data.repository.VehicleRepositoryImpl
@@ -28,6 +30,7 @@ import com.helper.mobile.data.sync.WorkManagerScheduler
 import com.helper.mobile.domain.repository.AssistanceRepository
 import com.helper.mobile.domain.repository.AuthRepository
 import com.helper.mobile.domain.repository.LocationProvider
+import com.helper.mobile.domain.repository.NearbyMechanicsRepository
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.repository.PendingSendScheduler
 import com.helper.mobile.domain.repository.ProblemCatalogRepository
@@ -55,7 +58,9 @@ object DataModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): HelperDatabase =
-        Room.databaseBuilder(context, HelperDatabase::class.java, "helper.db").build()
+        Room.databaseBuilder(context, HelperDatabase::class.java, "helper.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun vehicleDao(db: HelperDatabase): VehicleDao = db.vehicleDao()
@@ -125,6 +130,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun problems(impl: ProblemCatalog): ProblemCatalogRepository
+
+    @Binds
+    abstract fun nearbyMechanics(impl: NearbyMechanicsRepositoryImpl): NearbyMechanicsRepository
 
     @Binds
     abstract fun location(impl: FusedLocationProvider): LocationProvider

@@ -92,10 +92,24 @@ class AssistanceRepositoryImpl @Inject constructor(
         val remoteId = local.remoteId ?: return RemoteActionResult.Done
         return when (val result = apiCall { api.assistance(remoteId) }) {
             is ApiResult.Success -> {
+                val body = result.body
+                val mechanicId = body.assignedMechanicId ?: local.mechanicId
+                // El nombre y la ubicación del mecánico se piden una sola vez, cuando aparece o cambia.
+                val profile = if (mechanicId != null && (mechanicId != local.mechanicId || local.mechanicName == null)) {
+                    (apiCall { api.mechanic(mechanicId) } as? ApiResult.Success)?.body
+                } else {
+                    null
+                }
                 dao.upsert(
                     local.copy(
-                        status = result.body.status.toStatus().name,
-                        mechanicId = result.body.assignedMechanicId ?: local.mechanicId,
+                        status = body.status.toStatus().name,
+                        mechanicId = mechanicId,
+                        mechanicName = profile?.name ?: local.mechanicName,
+                        mechanicRating = profile?.rating?.takeIf { (profile.ratingCount ?: 0) > 0 } ?: local.mechanicRating,
+                        mechanicLatitude = profile?.latitude ?: local.mechanicLatitude,
+                        mechanicLongitude = profile?.longitude ?: local.mechanicLongitude,
+                        mechanicEtaMinutes = body.assignedEtaMinutes ?: local.mechanicEtaMinutes,
+                        mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
                         lastSyncedAtMillis = time.now().toEpochMilli(),
                     ),
                 )

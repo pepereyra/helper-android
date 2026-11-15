@@ -57,3 +57,6 @@ fun AssistanceStatus.label(): String = when (this) {
 }
 
 fun Double.asDistance(): String = if (this < 1000) "${toInt()} m" else "%.1f km".format(this / 1000)
+
+/** Minutos estimados de llegada, como "3 min". */
+fun Int.asEta(): String = "${coerceAtLeast(1)} min"
