@@ -3,6 +3,7 @@ package com.helper.mobile.domain.repository
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
+import com.helper.mobile.domain.model.NearbyMechanic
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
 import com.helper.mobile.domain.model.Role
@@ -71,6 +72,11 @@ interface OfferRepository {
     suspend fun refresh(): RemoteActionResult
     suspend fun accept(assistanceId: String): AcceptResult
     suspend fun decline(assistanceId: String): RemoteActionResult
+}
+
+interface NearbyMechanicsRepository {
+    /** Mecánicos disponibles cerca de [point], del más cercano al más lejano; null si no hay conexión o falló. */
+    suspend fun near(point: GeoPoint, vehicleType: VehicleType?): List<NearbyMechanic>?
 }
 
 interface LocationProvider {

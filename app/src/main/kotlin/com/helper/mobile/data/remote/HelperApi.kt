@@ -7,6 +7,7 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Contrato con el backend. Todo pasa por el nginx del docker compose (puerto 8080), que reparte por prefijo:
@@ -39,7 +40,15 @@ interface HelperApi {
     suspend fun createMechanic(@Body body: CreateMechanicRequest): Response<Unit>
 
     @GET("mechanic/api/mechanics/{id}")
-    suspend fun mechanic(@Path("id") id: String): Response<Unit>
+    suspend fun mechanic(@Path("id") id: String): Response<MechanicResponse>
+
+    /** Solo repartidores. Distancia en línea recta, radio de 3 km por defecto. */
+    @GET("mechanic/api/mechanics/nearby")
+    suspend fun nearbyMechanics(
+        @Query("latitude") latitude: Double,
+        @Query("longitude") longitude: Double,
+        @Query("vehicleType") vehicleType: String? = null,
+    ): Response<List<NearbyMechanicResponse>>
 
     /** 403 mientras el mecánico está pendiente de validación. */
     @PATCH("mechanic/api/mechanics/{id}/availability")

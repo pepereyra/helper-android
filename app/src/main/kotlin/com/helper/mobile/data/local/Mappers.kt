@@ -39,7 +39,18 @@ fun AssistanceEntity.toDomain() = Assistance(
     confirmedAt = Instant.ofEpochMilli(confirmedAtMillis),
     status = AssistanceStatus.valueOf(status),
     mechanic = mechanicId?.let {
-        AssignedMechanic(it, mechanicName ?: "", mechanicRating, mechanicDistanceMeters)
+        AssignedMechanic(
+            id = it,
+            name = mechanicName ?: "",
+            rating = mechanicRating,
+            distanceMeters = mechanicDistanceMeters,
+            etaMinutes = mechanicEtaMinutes,
+            location = if (mechanicLatitude != null && mechanicLongitude != null) {
+                GeoPoint(mechanicLatitude, mechanicLongitude)
+            } else {
+                null
+            },
+        )
     },
     lastSyncedAt = lastSyncedAtMillis?.let(Instant::ofEpochMilli),
     needsLocationConfirmation = needsLocationConfirmation,
@@ -60,6 +71,9 @@ fun Assistance.toEntity() = AssistanceEntity(
     mechanicName = mechanic?.name,
     mechanicRating = mechanic?.rating,
     mechanicDistanceMeters = mechanic?.distanceMeters,
+    mechanicEtaMinutes = mechanic?.etaMinutes,
+    mechanicLatitude = mechanic?.location?.latitude,
+    mechanicLongitude = mechanic?.location?.longitude,
     lastSyncedAtMillis = lastSyncedAt?.toEpochMilli(),
     needsLocationConfirmation = needsLocationConfirmation,
 )
@@ -70,4 +84,7 @@ fun OfferEntity.toDomain() = Offer(
     vehicleType = VehicleType.valueOf(vehicleType),
     distanceMeters = distanceMeters,
     expiresAt = Instant.ofEpochMilli(expiresAtMillis),
+    location = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null,
+    etaMinutes = etaMinutes,
+    distanceByRoad = distanceByRoad,
 )

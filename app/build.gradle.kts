@@ -71,6 +71,9 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.location)
+    implementation(libs.osmdroid)
+    // Versiones con las librerías nativas alineadas a 16 KB (Android 15+ en páginas de 16 KB).
+    implementation(libs.androidx.graphics.path)
 
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)

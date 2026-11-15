@@ -1,5 +1,9 @@
 package com.helper.mobile.ui.rider
 
+import kotlinx.coroutines.Job
+import com.helper.mobile.domain.repository.NearbyMechanicsRepository
+import com.helper.mobile.domain.model.NearbyMechanic
+import com.helper.mobile.domain.model.GeoPoint
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.helper.mobile.data.network.ConnectivityObserver
@@ -51,6 +55,7 @@ class RiderViewModel @Inject constructor(
     private val problemsCatalog: ProblemCatalogRepository,
     private val location: LocationProvider,
     private val auth: AuthRepository,
+    private val nearbyMechanics: NearbyMechanicsRepository,
     private val registerVehicle: RegisterVehicleUseCase,
     private val requestAssistance: RequestAssistanceUseCase,
     private val sendPending: SendPendingAssistanceUseCase,
@@ -69,6 +74,13 @@ class RiderViewModel @Inject constructor(
     private val _problems = MutableStateFlow<List<ProblemType>>(emptyList())
     val form = MutableStateFlow(RequestForm())
     val message = MutableStateFlow<String?>(null)
+
+    /** Dónde está el repartidor, para centrar el mapa. Null hasta que haya permiso y una lectura. */
+    val myLocation = MutableStateFlow<GeoPoint?>(null)
+
+    /** Mecánicos disponibles cerca, para el mapa del formulario y mientras se busca mecánico. */
+    val nearby = MutableStateFlow<List<NearbyMechanic>>(emptyList())
+    private var nearbyJob: Job? = null
 
     /** Pedido que se está mostrando. Se conserva aunque termine, hasta que el repartidor lo cierre. */
     private val shownLocalId = MutableStateFlow<String?>(null)
@@ -99,6 +111,34 @@ class RiderViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Se llama cuando la pantalla tiene permiso de ubicación. Cada 15 segundos trae los mecánicos cercanos
+     * mientras el repartidor no tiene un mecánico asignado; la ubicación se relee cada minuto.
+     */
+    fun startNearbyUpdates() {
+        if (nearbyJob?.isActive == true) return
+        nearbyJob = viewModelScope.launch {
+            var round = 0
+            while (isActive) {
+                val status = tracking.value?.assistance?.status
+                val searching = status == null || status == AssistanceStatus.REQUESTED
+                if (searching && online.value) {
+                    if (round % 4 == 0 || myLocation.value == null) {
+                        location.currentLocation()?.let { myLocation.value = it }
+                    }
+                    myLocation.value?.let { here ->
+                        nearbyMechanics.near(here, selectedVehicleType())?.let { nearby.value = it }
+                    }
+                    round++
+                }
+                delay(15_000)
+            }
+        }
+    }
+
+    private fun selectedVehicleType(): VehicleType? =
+        vehicles.value.firstOrNull { it.id == form.value.vehicleId }?.type
 
     fun selectVehicle(id: String) = form.update { it.copy(vehicleId = id, problemCode = null) }
     fun selectProblem(code: String) = form.update { it.copy(problemCode = code) }

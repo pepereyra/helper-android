@@ -40,6 +40,10 @@ class OfferRepositoryImpl @Inject constructor(
                             vehicleType = it.vehicleType,
                             distanceMeters = it.distanceKm * 1000,
                             expiresAtMillis = Instant.parse(it.expiresAt).toEpochMilli(),
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            etaMinutes = it.etaMinutes,
+                            distanceByRoad = it.etaSource == "ROUTE",
                         )
                     },
                 )

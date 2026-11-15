@@ -68,7 +68,30 @@ data class AssistanceResponse(
     val id: String,
     val status: String,
     val assignedMechanicId: String? = null,
+    val assignedEtaMinutes: Int? = null,
+    val assignedDistanceKm: Double? = null,
     val offersExpireAt: String? = null,
+)
+
+/** GET /api/mechanics/{id}: lo que la app usa del perfil del mecánico asignado. */
+@Serializable
+data class MechanicResponse(
+    val id: String,
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val rating: Double? = null,
+    val ratingCount: Int? = null,
+)
+
+/** GET /api/mechanics/nearby: mecánicos disponibles cerca, sin datos de contacto. */
+@Serializable
+data class NearbyMechanicResponse(
+    val id: String,
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val distanceKm: Double,
 )
 
 /** GET /api/dispatches/offers: trae la habilidad requerida y la distancia en km. */
@@ -81,6 +104,9 @@ data class OfferResponse(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val distanceKm: Double,
+    val etaMinutes: Int? = null,
+    /** ROUTE si la distancia es por calle; si no, es en línea recta. */
+    val etaSource: String? = null,
     val ranking: Int? = null,
     val expiresAt: String,
 )

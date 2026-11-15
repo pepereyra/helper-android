@@ -35,6 +35,9 @@ data class AssistanceEntity(
     val mechanicName: String?,
     val mechanicRating: Double?,
     val mechanicDistanceMeters: Double?,
+    val mechanicEtaMinutes: Int? = null,
+    val mechanicLatitude: Double? = null,
+    val mechanicLongitude: Double? = null,
     val lastSyncedAtMillis: Long?,
     val needsLocationConfirmation: Boolean,
 )
@@ -46,4 +49,8 @@ data class OfferEntity(
     val vehicleType: String,
     val distanceMeters: Double,
     val expiresAtMillis: Long,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val etaMinutes: Int? = null,
+    val distanceByRoad: Boolean = false,
 )
