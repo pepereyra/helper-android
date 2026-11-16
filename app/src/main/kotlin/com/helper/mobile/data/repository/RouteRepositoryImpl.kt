@@ -6,7 +6,6 @@ import com.helper.mobile.data.remote.apiCall
 import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.Route
 import com.helper.mobile.domain.model.RouteStep
-import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.repository.RouteRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,10 +16,10 @@ class RouteRepositoryImpl @Inject constructor(
     private val api: HelperApi,
 ) : RouteRepository {
 
-    override suspend fun route(from: GeoPoint, to: GeoPoint, vehicleType: VehicleType?): Route? =
+    override suspend fun route(from: GeoPoint, to: GeoPoint): Route? =
         when (
             val result = apiCall {
-                api.route(from.latitude, from.longitude, to.latitude, to.longitude, vehicleType?.name)
+                api.route(from.latitude, from.longitude, to.latitude, to.longitude)
             }
         ) {
             is ApiResult.Success -> result.body.let { body ->

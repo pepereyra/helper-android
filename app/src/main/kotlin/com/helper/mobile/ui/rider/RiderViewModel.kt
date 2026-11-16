@@ -171,7 +171,7 @@ class RiderViewModel @Inject constructor(
         }
         val lastFrom = routeFrom
         if (lastFrom != null && lastFrom.distanceTo(mechanicAt) < ROUTE_REFRESH_METERS && mechanicRoute.value != null) return
-        routes.route(mechanicAt, assistance.location, assistance.vehicleType)?.let {
+        routes.route(mechanicAt, assistance.location)?.let {
             mechanicRoute.value = it
             routeFrom = mechanicAt
         }
