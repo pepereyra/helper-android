@@ -71,6 +71,10 @@ data class AssistanceResponse(
     val assignedEtaMinutes: Int? = null,
     val assignedDistanceKm: Double? = null,
     val offersExpireAt: String? = null,
+    val problemType: String? = null,
+    val vehicleType: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 /** GET /api/mechanics/{id}: lo que la app usa del perfil del mecánico asignado. */

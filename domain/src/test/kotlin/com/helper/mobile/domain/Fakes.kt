@@ -2,6 +2,9 @@ package com.helper.mobile.domain
 
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
+import com.helper.mobile.domain.repository.ActiveJobResult
+import com.helper.mobile.domain.repository.JobActionResult
+import com.helper.mobile.domain.repository.JobRepository
 import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
@@ -123,4 +126,21 @@ class FakeOffers(var acceptResult: AcceptResult = AcceptResult.Accepted) : Offer
         return acceptResult
     }
     override suspend fun decline(assistanceId: String): RemoteActionResult = RemoteActionResult.Done
+}
+
+class FakeJobs(
+    var result: JobActionResult =
+        JobActionResult.Done(AssistanceStatus.IN_PROGRESS),
+) : JobRepository {
+    val calls = mutableListOf<String>()
+    override suspend fun active(): ActiveJobResult =
+        ActiveJobResult.Known(null)
+    override suspend fun start(assistanceId: String): JobActionResult {
+        calls += "start:$assistanceId"
+        return result
+    }
+    override suspend fun complete(assistanceId: String): JobActionResult {
+        calls += "complete:$assistanceId"
+        return result
+    }
 }
