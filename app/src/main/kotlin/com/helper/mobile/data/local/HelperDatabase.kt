@@ -7,14 +7,26 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Fuente de verdad local: la UI siempre lee de acá, también sin conexión. */
 @Database(
-    entities = [VehicleEntity::class, AssistanceEntity::class, OfferEntity::class],
-    version = 2,
+    entities = [VehicleEntity::class, AssistanceEntity::class, OfferEntity::class, StatusChangeEntity::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class HelperDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
     abstract fun assistanceDao(): AssistanceDao
     abstract fun offerDao(): OfferDao
+    abstract fun statusChangeDao(): StatusChangeDao
+}
+
+/** v3: historial de estados de cada pedido, para verlo también sin conexión. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `status_changes` (`assistanceLocalId` TEXT NOT NULL, `fromStatus` TEXT, " +
+                "`toStatus` TEXT NOT NULL, `changedAtMillis` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`assistanceLocalId`, `toStatus`, `changedAtMillis`))",
+        )
+    }
 }
 
 /** v2: tiempo estimado y ubicación del mecánico asignado, y ubicación del repartidor en las ofertas. */

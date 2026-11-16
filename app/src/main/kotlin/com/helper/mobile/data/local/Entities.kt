@@ -42,6 +42,15 @@ data class AssistanceEntity(
     val needsLocationConfirmation: Boolean,
 )
 
+/** Historial de estados de un pedido, tal como lo devuelve el servidor. Fechas en milisegundos epoch. */
+@Entity(tableName = "status_changes", primaryKeys = ["assistanceLocalId", "toStatus", "changedAtMillis"])
+data class StatusChangeEntity(
+    val assistanceLocalId: String,
+    val fromStatus: String?,
+    val toStatus: String,
+    val changedAtMillis: Long,
+)
+
 @Entity(tableName = "offers")
 data class OfferEntity(
     @PrimaryKey val assistanceId: String,

@@ -10,6 +10,8 @@ import com.helper.mobile.BuildConfig
 import com.helper.mobile.data.local.AssistanceDao
 import com.helper.mobile.data.local.HelperDatabase
 import com.helper.mobile.data.local.MIGRATION_1_2
+import com.helper.mobile.data.local.MIGRATION_2_3
+import com.helper.mobile.data.local.StatusChangeDao
 import com.helper.mobile.data.local.OfferDao
 import com.helper.mobile.data.local.VehicleDao
 import com.helper.mobile.data.location.FusedLocationProvider
@@ -61,7 +63,7 @@ object DataModule {
     @Singleton
     fun database(@ApplicationContext context: Context): HelperDatabase =
         Room.databaseBuilder(context, HelperDatabase::class.java, "helper.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides
@@ -72,6 +74,9 @@ object DataModule {
 
     @Provides
     fun offerDao(db: HelperDatabase): OfferDao = db.offerDao()
+
+    @Provides
+    fun statusChangeDao(db: HelperDatabase): StatusChangeDao = db.statusChangeDao()
 
     @Provides
     @Singleton

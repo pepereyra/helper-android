@@ -63,3 +63,21 @@ interface OfferDao {
         upsertAll(offers)
     }
 }
+
+@Dao
+interface StatusChangeDao {
+    @Query("SELECT * FROM status_changes WHERE assistanceLocalId = :localId ORDER BY changedAtMillis")
+    fun observe(localId: String): Flow<List<StatusChangeEntity>>
+
+    @Query("DELETE FROM status_changes WHERE assistanceLocalId = :localId")
+    suspend fun clear(localId: String)
+
+    @Upsert
+    suspend fun upsertAll(changes: List<StatusChangeEntity>)
+
+    @Transaction
+    suspend fun replaceFor(localId: String, changes: List<StatusChangeEntity>) {
+        clear(localId)
+        upsertAll(changes)
+    }
+}

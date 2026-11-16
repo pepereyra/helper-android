@@ -9,6 +9,7 @@ import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
 import com.helper.mobile.domain.model.Role
 import com.helper.mobile.domain.model.Session
+import com.helper.mobile.domain.model.StatusChange
 import com.helper.mobile.domain.model.Vehicle
 import com.helper.mobile.domain.model.VehicleType
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +57,11 @@ interface AssistanceRepository {
     suspend fun send(assistance: Assistance): SendResult
     suspend fun cancelRemote(assistance: Assistance): RemoteActionResult
     suspend fun refresh(localId: String): RemoteActionResult
+
+    /** Historial guardado en el teléfono: se ve también sin conexión. */
+    fun observeHistory(localId: String): Flow<List<StatusChange>>
+    /** Trae el historial del servidor y lo guarda; Done sin hacer nada si el pedido nunca llegó. */
+    suspend fun refreshHistory(localId: String): RemoteActionResult
 }
 
 sealed interface AcceptResult {

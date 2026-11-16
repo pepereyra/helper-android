@@ -6,6 +6,7 @@ import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.Offer
 import com.helper.mobile.domain.model.ProblemType
 import com.helper.mobile.domain.model.Session
+import com.helper.mobile.domain.model.StatusChange
 import com.helper.mobile.domain.model.Vehicle
 import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.repository.AcceptResult
@@ -93,6 +94,8 @@ class FakeAssistances : AssistanceRepository {
 
     override suspend fun cancelRemote(assistance: Assistance): RemoteActionResult = cancelResult
     override suspend fun refresh(localId: String): RemoteActionResult = RemoteActionResult.Done
+    override fun observeHistory(localId: String): Flow<List<StatusChange>> = MutableStateFlow(emptyList())
+    override suspend fun refreshHistory(localId: String): RemoteActionResult = RemoteActionResult.Done
 }
 
 class FakeLocation(var current: GeoPoint? = OBELISCO) : LocationProvider {
