@@ -44,6 +44,7 @@ data class AssistanceEntity(
     val lastSyncedAtMillis: Long?,
     val needsLocationConfirmation: Boolean,
     val rating: Int? = null,
+    val preferredMechanicKind: String? = null,
 )
 
 /** Historial de estados de un pedido, tal como lo devuelve el servidor. Fechas en milisegundos epoch. */

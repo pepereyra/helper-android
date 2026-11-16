@@ -65,6 +65,8 @@ data class CreateAssistanceRequest(
     val latitude: Double,
     val longitude: Double,
     val clientCreatedAt: String,
+    /** MOBILE (a domicilio), WORKSHOP (ir a un taller) o null (cualquiera). */
+    val mechanicKind: String? = null,
 )
 
 @Serializable

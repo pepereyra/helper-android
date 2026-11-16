@@ -70,6 +70,8 @@ data class Assistance(
     val needsLocationConfirmation: Boolean = false,
     /** Calificación de 1 a 5 que dio el repartidor al terminar; null si todavía no calificó. */
     val rating: Int? = null,
+    /** Lo que eligió al pedir: que vaya un mecánico ([MechanicKind.MOBILE]) o ir a un taller; null = cualquiera. */
+    val preferredKind: MechanicKind? = null,
 )
 
 /** Pedido ofrecido a un mecánico cercano. Lo toma el primero que acepta. */

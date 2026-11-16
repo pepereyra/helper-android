@@ -62,6 +62,7 @@ class AssistanceRepositoryImpl @Inject constructor(
             latitude = assistance.location.latitude,
             longitude = assistance.location.longitude,
             clientCreatedAt = assistance.confirmedAt.toString(),
+            mechanicKind = assistance.preferredKind?.name,
         )
         return when (val result = apiCall { api.createAssistance(assistance.localId, body) }) {
             is ApiResult.Success -> SendResult.Accepted(result.body.id, result.body.status.toStatus())

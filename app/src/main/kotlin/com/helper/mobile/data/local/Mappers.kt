@@ -59,6 +59,7 @@ fun AssistanceEntity.toDomain() = Assistance(
     lastSyncedAt = lastSyncedAtMillis?.let(Instant::ofEpochMilli),
     needsLocationConfirmation = needsLocationConfirmation,
     rating = rating,
+    preferredKind = preferredMechanicKind?.let { MechanicKind.from(it) },
 )
 
 fun Assistance.toEntity() = AssistanceEntity(
@@ -85,6 +86,7 @@ fun Assistance.toEntity() = AssistanceEntity(
     lastSyncedAtMillis = lastSyncedAt?.toEpochMilli(),
     needsLocationConfirmation = needsLocationConfirmation,
     rating = rating,
+    preferredMechanicKind = preferredKind?.name,
 )
 
 fun OfferEntity.toDomain() = Offer(

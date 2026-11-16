@@ -8,7 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /** Fuente de verdad local: la UI siempre lee de acá, también sin conexión. */
 @Database(
     entities = [VehicleEntity::class, AssistanceEntity::class, OfferEntity::class, StatusChangeEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class HelperDatabase : RoomDatabase() {
@@ -16,6 +16,13 @@ abstract class HelperDatabase : RoomDatabase() {
     abstract fun assistanceDao(): AssistanceDao
     abstract fun offerDao(): OfferDao
     abstract fun statusChangeDao(): StatusChangeDao
+}
+
+/** v7: si el repartidor pidió un mecánico a domicilio o ir a un taller. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE assistances ADD COLUMN preferredMechanicKind TEXT")
+    }
 }
 
 /** v6: si el mecánico asignado es un taller, y su dirección. */
