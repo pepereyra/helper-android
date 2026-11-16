@@ -1,0 +1,14 @@
+Cuenta nueva de mecánico (sin aprobar): 0c594412-f009-4bf4-a204-987e41fb8b56 PENDING_VERIFICATION
+
+1) Alta del perfil:
+{"id":"0c594412-f009-4bf4-a204-987e41fb8b56","name":"Mecanico Pendiente","email":"…","phone":"1100000000","kind":"MOBILE","address":null,"latitude":-34.604,"longitude":-58.382,"available":false,"rating":5.0,"ratingCount":0,"skills":["TIRE_REPAIR"],"vehicleTypes":["BICYCLE"],"verificationStatus":"PENDING_VERIFICATION"}
+HTTP 201
+
+
+2) Ponerse disponible:
+{"detail":"Mechanic 0c594412-f009-4bf4-a204-987e41fb8b56 is pending verification: an admin must approve them first","instance":"/api/mechanics/0c594412-f009-4bf4-a204-987e41fb8b56/availability","status":403,"title":"Mechanic pending verification"}
+HTTP 403
+
+3) Ver ofertas:
+{"detail":"Mechanic pending verification: an admin must approve them first","instance":"/api/dispatches/offers","status":403,"title":"Forbidden"}
+HTTP 403

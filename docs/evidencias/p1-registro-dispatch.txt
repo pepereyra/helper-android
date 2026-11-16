@@ -1,0 +1,17 @@
+Pedido e72c7e99-92b7-4a44-a05e-577078e37bb7 (repartidor en el Obelisco, -34.6037 / -58.3816)
+
+ ranking |             mechanic_id              | distance_km | eta_minutes | eta_source |  status  
+---------+--------------------------------------+-------------+-------------+------------+----------
+       1 | 3ea636e0-2dc4-439a-bdb2-843da642b592 |           0 |           1 | ROUTE      | LOST
+       2 | 2f1fb218-fd5a-444e-8e6a-602fd5be5d08 |           0 |           1 | ROUTE      | ACCEPTED
+(2 rows)
+
+Mecánicos:
+                  id                  |       name        | latitude  | longitude 
+--------------------------------------+-------------------+-----------+-----------
+ 89871b7f-9a86-4f4e-8afd-c2b3767749ac | Grace Rodados     |  -34.6038 |   -58.382
+ 3ea636e0-2dc4-439a-bdb2-843da642b592 | Ada Mecánica      |  -34.6037 |  -58.3816
+ 2f1fb218-fd5a-444e-8e6a-602fd5be5d08 | Bicicleteria Demo | -34.60372 | -58.38165
+ 1ffea8b9-4eb7-4281-be24-68c48808e2c3 | Taller Prueba     |   -34.604 |   -58.382
+(4 rows)
+
