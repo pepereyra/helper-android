@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.helper.mobile.ui.home
 
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,7 +81,8 @@ fun RiderHome() {
     }
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = { HomeBar(RIDER_TABS, tab) { tab = it } },
+        // Con el teclado abierto se oculta la barra: el espacio queda para el campo y el botón principal.
+        bottomBar = { if (!WindowInsets.isImeVisible) HomeBar(RIDER_TABS, tab) { tab = it } },
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
@@ -100,12 +104,12 @@ fun MechanicHome(viewModel: MechanicViewModel = hiltViewModel()) {
     }
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = { HomeBar(MECHANIC_TABS, tab) { tab = it } },
+        bottomBar = { if (!WindowInsets.isImeVisible) HomeBar(MECHANIC_TABS, tab) { tab = it } },
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
                 0 -> MechanicOffersScreen(onOpenJob = { tab = 1 }, viewModel = viewModel)
-                1 -> MechanicJobScreen(viewModel = viewModel)
+                1 -> MechanicJobScreen(onBackToOffers = { tab = 0 }, viewModel = viewModel)
                 else -> AccountScreen()
             }
         }

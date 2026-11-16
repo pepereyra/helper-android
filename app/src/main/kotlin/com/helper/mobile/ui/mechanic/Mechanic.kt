@@ -111,6 +111,13 @@ class MechanicViewModel @Inject constructor(
     private var navigation: Job? = null
 
     init {
+        // El interruptor arranca como está en el servidor: si ya estaba disponible, sigue recibiendo pedidos.
+        viewModelScope.launch {
+            status.current()?.let {
+                available.value = it.available
+                if (myLocation.value == null) myLocation.value = it.location
+            }
+        }
         // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta. Si hay un trabajo abierto,
         // se revisa que siga activo: el repartidor pudo haberlo cancelado.
         viewModelScope.launch {
@@ -342,7 +349,7 @@ fun MechanicOffersScreen(onOpenJob: () -> Unit, viewModel: MechanicViewModel = h
 
 /** M2 · Trabajo en curso: el pedido que tomó, con la ruta y los botones para empezarlo y terminarlo. */
 @Composable
-fun MechanicJobScreen(viewModel: MechanicViewModel = hiltViewModel()) {
+fun MechanicJobScreen(onBackToOffers: () -> Unit, viewModel: MechanicViewModel = hiltViewModel()) {
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val job by viewModel.job.collectAsStateWithLifecycle()
@@ -368,7 +375,7 @@ fun MechanicJobScreen(viewModel: MechanicViewModel = hiltViewModel()) {
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
             ) { TripCard(current, me, viewModel) }
-            JobActions(current, online, viewModel)
+            JobActions(current, online, viewModel, onBackToOffers)
         }
     }
 }
@@ -449,7 +456,7 @@ private fun TripCard(job: MechanicJob, me: GeoPoint?, viewModel: MechanicViewMod
 
 /** La acción principal del trabajo: empezar, terminar o volver a los pedidos. */
 @Composable
-private fun JobActions(job: MechanicJob, online: Boolean, viewModel: MechanicViewModel) {
+private fun JobActions(job: MechanicJob, online: Boolean, viewModel: MechanicViewModel, onBackToOffers: () -> Unit) {
     val advancing by viewModel.advancing.collectAsStateWithLifecycle()
     val next = AdvanceJobUseCase.nextStepLabel(job.status)
     if (next != null) {
@@ -460,7 +467,13 @@ private fun JobActions(job: MechanicJob, online: Boolean, viewModel: MechanicVie
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (advancing) "Un momento…" else next) }
     } else {
-        Button(onClick = viewModel::closeJob, modifier = Modifier.fillMaxWidth()) { Text("Volver a los pedidos") }
+        Button(
+            onClick = {
+                viewModel.closeJob()
+                onBackToOffers()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Volver a los pedidos") }
     }
 }
 

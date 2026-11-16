@@ -41,6 +41,7 @@ data class AssistanceEntity(
     val mechanicPhone: String? = null,
     val lastSyncedAtMillis: Long?,
     val needsLocationConfirmation: Boolean,
+    val rating: Int? = null,
 )
 
 /** Historial de estados de un pedido, tal como lo devuelve el servidor. Fechas en milisegundos epoch. */

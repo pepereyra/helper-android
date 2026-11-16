@@ -82,6 +82,10 @@ interface HelperApi {
     @POST("assistance/api/assistances/{id}/complete")
     suspend fun complete(@Path("id") id: String): Response<AssistanceResponse>
 
+    /** Solo el repartidor dueño, con el pedido terminado; 409 si ya calificó. */
+    @POST("assistance/api/assistances/{id}/rating")
+    suspend fun rate(@Path("id") id: String, @Body body: RateRequest): Response<AssistanceResponse>
+
     @POST("assistance/api/assistances/{id}/cancel")
     suspend fun cancel(@Path("id") id: String): Response<AssistanceResponse>
 

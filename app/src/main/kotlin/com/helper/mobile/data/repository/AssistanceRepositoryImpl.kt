@@ -1,5 +1,6 @@
 package com.helper.mobile.data.repository
 
+import com.helper.mobile.data.remote.RateRequest
 import com.helper.mobile.data.local.AssistanceDao
 import com.helper.mobile.data.local.StatusChangeDao
 import com.helper.mobile.data.local.StatusChangeEntity
@@ -120,6 +121,7 @@ class AssistanceRepositoryImpl @Inject constructor(
                         mechanicPhone = profile?.phone ?: local.mechanicPhone,
                         mechanicEtaMinutes = body.assignedEtaMinutes ?: local.mechanicEtaMinutes,
                         mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
+                        rating = body.rating ?: local.rating,
                         lastSyncedAtMillis = time.now().toEpochMilli(),
                     ),
                 )
@@ -163,6 +165,25 @@ class AssistanceRepositoryImpl @Inject constructor(
             }
             ApiResult.NoConnection -> RemoteActionResult.NoConnection
             is ApiResult.HttpError -> RemoteActionResult.Rejected(result.reason())
+        }
+    }
+
+    override suspend fun rate(localId: String, score: Int, comment: String?): RemoteActionResult {
+        val local = dao.find(localId) ?: return RemoteActionResult.Rejected("No existe")
+        val remoteId = local.remoteId ?: return RemoteActionResult.Rejected("El pedido nunca se envió")
+        return when (val result = apiCall { api.rate(remoteId, RateRequest(score, comment?.takeIf { it.isNotBlank() })) }) {
+            is ApiResult.Success -> {
+                dao.upsert(local.copy(rating = result.body.rating ?: score))
+                RemoteActionResult.Done
+            }
+            ApiResult.NoConnection -> RemoteActionResult.NoConnection
+            // 409: ya estaba calificado (por ejemplo, desde otro teléfono). Se guarda para no volver a pedirlo.
+            is ApiResult.HttpError -> if (result.status == 409) {
+                dao.upsert(local.copy(rating = local.rating ?: score))
+                RemoteActionResult.Done
+            } else {
+                RemoteActionResult.Rejected(result.reason())
+            }
         }
     }
 

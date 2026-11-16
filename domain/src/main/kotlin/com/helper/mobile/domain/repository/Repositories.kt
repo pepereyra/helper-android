@@ -58,6 +58,8 @@ interface AssistanceRepository {
     suspend fun send(assistance: Assistance): SendResult
     suspend fun cancelRemote(assistance: Assistance): RemoteActionResult
     suspend fun refresh(localId: String): RemoteActionResult
+    /** Califica al mecánico de un pedido terminado (1 a 5). Requiere conexión. */
+    suspend fun rate(localId: String, score: Int, comment: String?): RemoteActionResult
 
     /** Historial guardado en el teléfono: se ve también sin conexión. */
     fun observeHistory(localId: String): Flow<List<StatusChange>>
@@ -156,8 +158,13 @@ sealed interface AvailabilityResult {
     data class Rejected(val reason: String) : AvailabilityResult
 }
 
+/** Cómo está el mecánico en el servidor; sirve para que el interruptor arranque como corresponde. */
+data class MechanicState(val available: Boolean, val location: GeoPoint)
+
 interface MechanicStatusRepository {
     suspend fun setAvailable(available: Boolean, location: GeoPoint): AvailabilityResult
+    /** null si no hay conexión o falló. */
+    suspend fun current(): MechanicState?
 }
 
 sealed interface JobActionResult {
