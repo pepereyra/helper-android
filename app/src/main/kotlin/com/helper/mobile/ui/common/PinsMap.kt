@@ -36,7 +36,13 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.util.GeoPoint as OsmPoint
 
 /** Un punto en el mapa. [isMain] es el del usuario (o el pedido, para el mecánico): va en naranja. */
-data class MapPin(val point: GeoPoint, val title: String, val isMain: Boolean = false)
+data class MapPin(
+    val point: GeoPoint,
+    val title: String,
+    val isMain: Boolean = false,
+    /** El principal (el repartidor) es una bicicleta; los demás, mecánicos y talleres, una llave de tuercas. */
+    val icon: PinIcon = if (isMain) PinIcon.BIKE else PinIcon.WRENCH,
+)
 
 internal const val ORANGE = 0xFFE2661D.toInt()
 private const val SINGLE_PIN_ZOOM = 16.0
@@ -52,6 +58,9 @@ fun PinsMap(
     modifier: Modifier = Modifier,
     height: Dp = 220.dp,
     route: List<GeoPoint> = emptyList(),
+    /** Si se pasa, el mapa se centra ahí con [focusZoom] en vez de encuadrar todos los pines. */
+    focus: GeoPoint? = null,
+    focusZoom: Double = 16.0,
 ) {
     val context = LocalContext.current
     // Mismo estilo que la navegación del mecánico: calles en gris, ruta y repartidor en naranja.
@@ -75,7 +84,7 @@ fun PinsMap(
 
     AndroidView(
         factory = { map },
-        update = { view -> show(view, pins, route) },
+        update = { view -> show(view, pins, route, focus, focusZoom) },
         modifier = modifier
             .fillMaxWidth()
             .height(height)
@@ -94,7 +103,7 @@ internal fun createMap(context: Context): MapView {
     }
 }
 
-private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>) {
+private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>, focus: GeoPoint?, focusZoom: Double) {
     map.overlays.removeAll { it is Marker || it is Polyline }
     if (route.size >= 2) {
         map.overlays.add(line(map, route, android.graphics.Color.WHITE, 18f))
@@ -107,11 +116,25 @@ private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>) {
                 position = pin.point.toOsm()
                 title = pin.title
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                icon = tinted(map.context, if (pin.isMain) ORANGE else INK)
+                icon = pinDrawable(map.context, pin.icon, if (pin.isMain) ORANGE else INK)
             },
         )
     }
     map.invalidate()
+    if (focus != null) {
+        // Se centra solo cuando cambia el punto (más de 30 m): así no pisa lo que el usuario movió o acercó.
+        val last = map.tag as? GeoPoint
+        if (last == null || last.distanceTo(focus) > 30) {
+            map.tag = focus
+            val center = {
+                map.controller.setZoom(focusZoom)
+                map.controller.setCenter(focus.toOsm())
+            }
+            // Igual que el encuadre: antes del primer layout el mapa ignora el centro.
+            if (map.width == 0 || map.height == 0) map.addOnFirstLayoutListener { _, _, _, _, _ -> center() } else center()
+        }
+        return
+    }
     val framed = pins.map { it.point } + route
     if (framed.isEmpty()) return
     // El encuadre necesita el tamaño de la vista: si todavía no se midió, se hace después del primer layout.
@@ -153,10 +176,12 @@ fun PickLocationMap(
     onPick: (GeoPoint) -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 300.dp,
+    pinIcon: PinIcon = PinIcon.BIKE,
 ) {
     val context = LocalContext.current
     val map = remember {
         createMap(context).apply {
+            twoColors()
             controller.setZoom(14.0)
             controller.setCenter((selected ?: BUENOS_AIRES).toOsm())
         }
@@ -204,7 +229,7 @@ fun PickLocationMap(
                         position = selected.toOsm()
                         title = "Estás acá"
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = tinted(view.context, ORANGE)
+                        icon = pinDrawable(view.context, pinIcon, ORANGE)
                     },
                 )
             }

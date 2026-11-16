@@ -130,7 +130,7 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
         viewModel.startNearbyUpdates()
     }
 
-    ScrollingBody {
+    // El mapa queda fijo arriba mientras se completa el pedido: lo que se desplaza es el formulario.
     if (picking) {
         Text("Marcá dónde estás", style = MaterialTheme.typography.titleMedium)
         Text(
@@ -140,8 +140,9 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
         PickLocationMap(selected = picked, onPick = viewModel::pickLocation)
         TextButton(onClick = viewModel::cancelPickingLocation) { Text("Usar el GPS del teléfono") }
     } else {
-        NearbyMap(viewModel, onlyKind = form.mechanicKind)
+        NearbyMap(viewModel, onlyKind = form.mechanicKind, focusOnMe = true)
     }
+    ScrollingBody {
 
     Text("¿Con qué vehículo?", style = MaterialTheme.typography.titleMedium)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,7 +225,12 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
 
 /** Mapa con el repartidor y los mecánicos disponibles cerca. Pide el permiso de ubicación si todavía no lo tiene. */
 @Composable
-private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null, onlyKind: MechanicKind? = null) {
+private fun NearbyMap(
+    viewModel: RiderViewModel,
+    center: GeoPoint? = null,
+    onlyKind: MechanicKind? = null,
+    focusOnMe: Boolean = false,
+) {
     val context = LocalContext.current
     val here by viewModel.myLocation.collectAsStateWithLifecycle()
     val all by viewModel.nearby.collectAsStateWithLifecycle()
@@ -237,6 +243,8 @@ private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null, onlyK
     LaunchedEffect(granted) { if (granted) viewModel.startNearbyUpdates() }
 
     if (!granted) {
+        // Sin permiso igual se ve el mapa (centrado en Buenos Aires) y se puede dar el permiso o marcar el lugar.
+        PinsMap(emptyList(), description = "Mapa de la zona", focus = BUENOS_AIRES_CENTER, focusZoom = 15.0)
         OutlinedButton(
             onClick = {
                 askLocation.launch(
@@ -268,7 +276,14 @@ private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null, onlyK
         1 -> "1 $one disponible cerca."
         else -> "${nearby.size} $many disponibles cerca."
     }
-    PinsMap(pins, description = "Mapa: vos y $summary")
+    // Al pedir ayuda, el mapa arranca acercado sobre el repartidor; durante la búsqueda encuadra a todos.
+    PinsMap(
+        pins,
+        description = "Mapa: vos y $summary",
+        focus = me.takeIf { focusOnMe },
+        focusZoom = 17.5,
+        height = if (focusOnMe) 280.dp else 220.dp,
+    )
     Text(summary, style = MaterialTheme.typography.bodySmall)
 }
 
@@ -689,3 +704,4 @@ private fun KindOption(
     }
 }
 
+private val BUENOS_AIRES_CENTER = GeoPoint(-34.6037, -58.3816)

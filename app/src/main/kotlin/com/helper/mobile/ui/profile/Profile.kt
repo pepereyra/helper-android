@@ -3,6 +3,7 @@
 package com.helper.mobile.ui.profile
 
 import com.helper.mobile.ui.common.PickLocationMap
+import com.helper.mobile.ui.common.PinIcon
 import com.helper.mobile.domain.model.GeoPoint
 import com.helper.mobile.domain.model.MechanicKind
 import android.Manifest
@@ -218,7 +219,12 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text("Tocá en el mapa dónde está el taller", style = MaterialTheme.typography.titleSmall)
-                PickLocationMap(selected = state.workshopLocation, onPick = viewModel::onWorkshopLocation, height = 260.dp)
+                PickLocationMap(
+                    selected = state.workshopLocation,
+                    onPick = viewModel::onWorkshopLocation,
+                    height = 260.dp,
+                    pinIcon = PinIcon.WRENCH,
+                )
             }
             if (role == Role.MECHANIC) {
                 Text("¿Qué arreglos hacés?", style = MaterialTheme.typography.titleMedium)
