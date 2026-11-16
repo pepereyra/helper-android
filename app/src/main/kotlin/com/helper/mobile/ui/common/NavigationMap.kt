@@ -93,7 +93,7 @@ private class NavigationMapState(val map: MapView) {
                 position = rider.toOsm()
                 title = "Repartidor"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                icon = tinted(map.context, ORANGE)
+                icon = pinDrawable(map.context, PinIcon.BIKE, ORANGE)
             },
         )
         val heading = me?.let { headingAlong(route, it) }
