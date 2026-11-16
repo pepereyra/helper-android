@@ -117,6 +117,7 @@ class AssistanceRepositoryImpl @Inject constructor(
                         mechanicRating = profile?.rating?.takeIf { (profile.ratingCount ?: 0) > 0 } ?: local.mechanicRating,
                         mechanicLatitude = profile?.latitude ?: local.mechanicLatitude,
                         mechanicLongitude = profile?.longitude ?: local.mechanicLongitude,
+                        mechanicPhone = profile?.phone ?: local.mechanicPhone,
                         mechanicEtaMinutes = body.assignedEtaMinutes ?: local.mechanicEtaMinutes,
                         mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
                         lastSyncedAtMillis = time.now().toEpochMilli(),

@@ -38,6 +38,7 @@ data class AssistanceEntity(
     val mechanicEtaMinutes: Int? = null,
     val mechanicLatitude: Double? = null,
     val mechanicLongitude: Double? = null,
+    val mechanicPhone: String? = null,
     val lastSyncedAtMillis: Long?,
     val needsLocationConfirmation: Boolean,
 )

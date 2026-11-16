@@ -34,6 +34,8 @@ data class AssignedMechanic(
     val etaMinutes: Int? = null,
     /** Dónde estaba el mecánico cuando se puso disponible; sirve para ubicarlo en el mapa. */
     val location: GeoPoint? = null,
+    /** Para el botón "Llamar"; null si el mecánico no lo cargó. */
+    val phone: String? = null,
 )
 
 /** Mecánico disponible cerca del repartidor, para mostrarlo en el mapa antes y durante la búsqueda. */

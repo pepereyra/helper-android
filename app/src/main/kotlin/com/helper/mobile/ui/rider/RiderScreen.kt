@@ -322,6 +322,13 @@ private fun RemoteTracking(tracking: Tracking, online: Boolean, viewModel: Rider
                 mechanic.location?.let { MapPin(it, name) },
             )
             PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
+            mechanic.phone?.let { phone ->
+                val context = LocalContext.current
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Llamar a ${name.substringBefore(' ')}") }
+            }
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
         AssistanceStatus.COMPLETED -> Text("¡Listo! El trabajo quedó terminado.")
