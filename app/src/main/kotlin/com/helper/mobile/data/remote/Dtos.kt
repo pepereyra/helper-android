@@ -143,3 +143,11 @@ data class RouteStepResponse(
     val latitude: Double,
     val longitude: Double,
 )
+
+/** GET /api/assistances/{id}/history. */
+@Serializable
+data class StatusChangeResponse(
+    val fromStatus: String? = null,
+    val toStatus: String,
+    val changedAt: String,
+)

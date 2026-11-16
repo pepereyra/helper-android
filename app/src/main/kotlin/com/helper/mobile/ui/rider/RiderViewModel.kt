@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.helper.mobile.data.network.ConnectivityObserver
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.ProblemType
+import com.helper.mobile.domain.model.StatusChange
 import com.helper.mobile.domain.model.Vehicle
 import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.repository.AssistanceRepository
@@ -53,7 +54,7 @@ data class RequestForm(
 class RiderViewModel @Inject constructor(
     vehicleRepository: VehicleRepository,
     connectivity: ConnectivityObserver,
-    assistances: AssistanceRepository,
+    private val assistances: AssistanceRepository,
     private val problemsCatalog: ProblemCatalogRepository,
     private val location: LocationProvider,
     private val auth: AuthRepository,
@@ -95,6 +96,13 @@ class RiderViewModel @Inject constructor(
     val tracking: StateFlow<ObserveAssistanceUseCase.Tracking?> = shownLocalId
         .flatMapLatest { id -> if (id == null) flowOf(null) else observeAssistance(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** 07 · Historial del pedido que se está mostrando, guardado en Room (se ve sin conexión). */
+    val history: StateFlow<List<StatusChange>> = shownLocalId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assistances.observeHistory(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val showingHistory = MutableStateFlow(false)
 
     /** Problemas que aplican al vehículo elegido. */
     val problems: StateFlow<List<ProblemType>> = combine(_problems, form, vehicles) { all, f, list ->
@@ -218,6 +226,22 @@ class RiderViewModel @Inject constructor(
         }
     }
 
+    fun openHistory() {
+        showingHistory.value = true
+        val localId = tracking.value?.assistance?.localId ?: return
+        viewModelScope.launch { assistances.refreshHistory(localId) }
+    }
+
+    fun closeHistory() {
+        showingHistory.value = false
+    }
+
+    /** Nombre del problema para mostrar, por ejemplo "Pinchadura". */
+    fun problemLabel(code: String): String = _problems.value.firstOrNull { it.code == code }?.label ?: code
+
+    fun vehicleName(id: String): String? =
+        vehicles.value.firstOrNull { it.id == id }?.let { "${it.brand} ${it.model}" }
+
     fun retryNow() {
         val pending = tracking.value?.assistance ?: return
         viewModelScope.launch {
@@ -262,6 +286,7 @@ class RiderViewModel @Inject constructor(
                 sendPending.sendOne(current.assistance, currentLocation = null)
             }
             shownLocalId.value = null
+            showingHistory.value = false
         }
     }
 

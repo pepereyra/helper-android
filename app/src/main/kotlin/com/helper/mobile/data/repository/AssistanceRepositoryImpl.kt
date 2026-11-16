@@ -1,6 +1,8 @@
 package com.helper.mobile.data.repository
 
 import com.helper.mobile.data.local.AssistanceDao
+import com.helper.mobile.data.local.StatusChangeDao
+import com.helper.mobile.data.local.StatusChangeEntity
 import com.helper.mobile.data.local.toDomain
 import com.helper.mobile.data.local.toEntity
 import com.helper.mobile.data.remote.ApiResult
@@ -10,6 +12,7 @@ import com.helper.mobile.data.remote.apiCall
 import com.helper.mobile.data.remote.reason
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
+import com.helper.mobile.domain.model.StatusChange
 import com.helper.mobile.domain.repository.AssistanceRepository
 import com.helper.mobile.domain.repository.RemoteActionResult
 import com.helper.mobile.domain.repository.SendResult
@@ -17,12 +20,14 @@ import com.helper.mobile.domain.repository.SessionRepository
 import com.helper.mobile.domain.repository.TimeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AssistanceRepositoryImpl @Inject constructor(
     private val dao: AssistanceDao,
+    private val history: StatusChangeDao,
     private val api: HelperApi,
     private val vehicles: VehicleRepositoryImpl,
     private val catalog: ProblemCatalog,
@@ -103,6 +108,7 @@ class AssistanceRepositoryImpl @Inject constructor(
                 } else {
                     null
                 }
+                val statusChanged = body.status != local.status
                 dao.upsert(
                     local.copy(
                         status = body.status.toStatus().name,
@@ -115,6 +121,42 @@ class AssistanceRepositoryImpl @Inject constructor(
                         mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
                         lastSyncedAtMillis = time.now().toEpochMilli(),
                     ),
+                )
+                // El historial solo cambia cuando cambia el estado: no hace falta pedirlo en cada actualización.
+                if (statusChanged) refreshHistory(localId)
+                RemoteActionResult.Done
+            }
+            ApiResult.NoConnection -> RemoteActionResult.NoConnection
+            is ApiResult.HttpError -> RemoteActionResult.Rejected(result.reason())
+        }
+    }
+
+    override fun observeHistory(localId: String): Flow<List<StatusChange>> =
+        history.observe(localId).map { list ->
+            list.mapNotNull { entity ->
+                val to = runCatching { AssistanceStatus.valueOf(entity.toStatus) }.getOrNull() ?: return@mapNotNull null
+                StatusChange(
+                    from = entity.fromStatus?.let { runCatching { AssistanceStatus.valueOf(it) }.getOrNull() },
+                    to = to,
+                    at = Instant.ofEpochMilli(entity.changedAtMillis),
+                )
+            }
+        }
+
+    override suspend fun refreshHistory(localId: String): RemoteActionResult {
+        val remoteId = dao.find(localId)?.remoteId ?: return RemoteActionResult.Done
+        return when (val result = apiCall { api.history(remoteId) }) {
+            is ApiResult.Success -> {
+                history.replaceFor(
+                    localId,
+                    result.body.map {
+                        StatusChangeEntity(
+                            assistanceLocalId = localId,
+                            fromStatus = it.fromStatus,
+                            toStatus = it.toStatus,
+                            changedAtMillis = Instant.parse(it.changedAt).toEpochMilli(),
+                        )
+                    },
                 )
                 RemoteActionResult.Done
             }

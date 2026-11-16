@@ -77,3 +77,11 @@ data class Offer(
     /** True si [distanceMeters] es por calle; false si es en línea recta. */
     val distanceByRoad: Boolean = false,
 )
+
+/** Un cambio de estado del pedido, con la hora en que pasó (07 · Historial del pedido). */
+data class StatusChange(
+    /** Null en el primero: el pedido recién creado. */
+    val from: AssistanceStatus?,
+    val to: AssistanceStatus,
+    val at: Instant,
+)

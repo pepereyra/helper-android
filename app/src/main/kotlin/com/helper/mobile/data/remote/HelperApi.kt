@@ -108,4 +108,8 @@ interface HelperApi {
     @POST("dispatch/api/dispatches/{assistanceId}/decline")
     /** Responde 204. */
     suspend fun decline(@Path("assistanceId") assistanceId: String): Response<Unit>
+
+    /** Cambios de estado del pedido, del más viejo al más nuevo (su repartidor, su mecánico o un admin). */
+    @GET("assistance/api/assistances/{id}/history")
+    suspend fun history(@Path("id") id: String): Response<List<StatusChangeResponse>>
 }
