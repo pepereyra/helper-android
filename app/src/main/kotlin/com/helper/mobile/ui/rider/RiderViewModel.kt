@@ -10,7 +10,7 @@ import com.helper.mobile.domain.model.NearbyMechanic
 import com.helper.mobile.domain.model.GeoPoint
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.helper.mobile.data.network.ConnectivityObserver
+import com.helper.mobile.data.network.Connectivity
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.ProblemType
 import com.helper.mobile.domain.model.StatusChange
@@ -57,7 +57,7 @@ data class RequestForm(
 @HiltViewModel
 class RiderViewModel @Inject constructor(
     vehicleRepository: VehicleRepository,
-    connectivity: ConnectivityObserver,
+    connectivity: Connectivity,
     private val assistances: AssistanceRepository,
     private val problemsCatalog: ProblemCatalogRepository,
     private val location: LocationProvider,
