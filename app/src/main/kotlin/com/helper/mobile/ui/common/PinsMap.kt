@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -24,9 +26,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.helper.mobile.BuildConfig
 import com.helper.mobile.domain.model.GeoPoint
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.util.GeoPoint as OsmPoint
@@ -142,3 +146,82 @@ private fun tinted(context: Context, color: Int): Drawable? =
     }
 
 private fun GeoPoint.toOsm() = OsmPoint(latitude, longitude)
+
+private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
+
+/**
+ * E3 · Sin permiso de ubicación: el repartidor toca el mapa para marcar dónde está. Arranca en el centro de
+ * Buenos Aires, o en [selected] si ya marcó un lugar.
+ */
+@Composable
+fun PickLocationMap(
+    selected: GeoPoint?,
+    onPick: (GeoPoint) -> Unit,
+    modifier: Modifier = Modifier,
+    height: Dp = 300.dp,
+) {
+    val context = LocalContext.current
+    val map = remember {
+        createMap(context).apply {
+            controller.setZoom(14.0)
+            controller.setCenter((selected ?: BUENOS_AIRES).toOsm())
+        }
+    }
+    val pick by rememberUpdatedState(onPick)
+
+    DisposableEffect(map) {
+        val taps = MapEventsOverlay(
+            object : MapEventsReceiver {
+                override fun singleTapConfirmedHelper(p: OsmPoint): Boolean {
+                    pick(GeoPoint(p.latitude, p.longitude))
+                    return true
+                }
+
+                override fun longPressHelper(p: OsmPoint): Boolean = false
+            },
+        )
+        map.overlays.add(0, taps)
+        onDispose { map.overlays.remove(taps) }
+    }
+
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, map) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> map.onResume()
+                Lifecycle.Event.ON_PAUSE -> map.onPause()
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            map.onDetach()
+        }
+    }
+
+    AndroidView(
+        factory = { map },
+        update = { view ->
+            view.overlays.removeAll { it is Marker }
+            if (selected != null) {
+                view.overlays.add(
+                    Marker(view).apply {
+                        position = selected.toOsm()
+                        title = "Estás acá"
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = tinted(view.context, ORANGE)
+                    },
+                )
+            }
+            view.invalidate()
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(12.dp))
+            .semantics {
+                contentDescription = if (selected == null) "Mapa: tocá el lugar donde estás" else "Mapa: lugar marcado"
+            },
+    )
+}

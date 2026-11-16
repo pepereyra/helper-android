@@ -79,6 +79,13 @@ class RiderViewModel @Inject constructor(
     val form = MutableStateFlow(RequestForm())
     val message = MutableStateFlow<String?>(null)
 
+    /** El último error se puede reintentar (E6): el botón Reintentar vuelve a mandar el pedido. */
+    val canRetry = MutableStateFlow(false)
+
+    /** E3: no hay permiso o no se pudo leer el GPS, así que el repartidor marca el lugar en el mapa. */
+    val pickingLocation = MutableStateFlow(false)
+    val pickedLocation = MutableStateFlow<GeoPoint?>(null)
+
     /** Dónde está el repartidor, para centrar el mapa. Null hasta que haya permiso y una lectura. */
     val myLocation = MutableStateFlow<GeoPoint?>(null)
 
@@ -176,7 +183,28 @@ class RiderViewModel @Inject constructor(
     fun selectVehicle(id: String) = form.update { it.copy(vehicleId = id, problemCode = null) }
     fun selectProblem(code: String) = form.update { it.copy(problemCode = code) }
     fun describe(text: String) = form.update { it.copy(description = text) }
-    fun dismissMessage() { message.value = null }
+    fun dismissMessage() {
+        message.value = null
+        canRetry.value = false
+    }
+
+    fun startPickingLocation() {
+        pickingLocation.value = true
+    }
+
+    fun pickLocation(point: GeoPoint) {
+        pickedLocation.value = point
+    }
+
+    fun cancelPickingLocation() {
+        pickingLocation.value = false
+        pickedLocation.value = null
+    }
+
+    fun retryLast() {
+        canRetry.value = false
+        requestHelp()
+    }
 
     fun addVehicle(type: VehicleType, brand: String, model: String, color: String?, plate: String?, onDone: () -> Unit) {
         viewModelScope.launch {
@@ -195,15 +223,26 @@ class RiderViewModel @Inject constructor(
 
     /** Se llama después de que el usuario otorgó (o negó) el permiso de ubicación. */
     fun requestHelp() {
+        // Si el repartidor ya marcó el lugar en el mapa, se usa ese.
+        pickedLocation.value?.let { return requestHelpAt(it) }
+        submit(null)
+    }
+
+    /** E3: pedir ayuda en el lugar que el repartidor marcó en el mapa. */
+    fun requestHelpAt(point: GeoPoint) = submit(point)
+
+    private fun submit(manual: GeoPoint?) {
         val current = form.value
         val vehicleId = current.vehicleId ?: return
         val problemCode = current.problemCode ?: return
         message.value = null
+        canRetry.value = false
         form.update { it.copy(sending = true) }
         viewModelScope.launch {
-            val here = location.currentLocation()
+            val here = manual ?: location.currentLocation()
             if (here == null) {
-                message.value = "No pudimos leer tu ubicación. Activá la ubicación del teléfono y el permiso, y probá de nuevo."
+                message.value = "No pudimos leer tu ubicación. Marcá en el mapa dónde estás."
+                pickingLocation.value = true
                 form.update { it.copy(sending = false) }
                 return@launch
             }
@@ -211,7 +250,10 @@ class RiderViewModel @Inject constructor(
             message.value = when (result) {
                 is RequestAssistanceUseCase.Result.Requested -> null
                 is RequestAssistanceUseCase.Result.NotSentYet -> null // la pantalla lo muestra en grande
-                is RequestAssistanceUseCase.Result.Rejected -> result.reason
+                is RequestAssistanceUseCase.Result.Rejected -> {
+                    canRetry.value = true
+                    "No pudimos crear el pedido: ${result.reason}"
+                }
                 is RequestAssistanceUseCase.Result.Invalid -> when (result.reason) {
                     RequestAssistanceUseCase.InvalidReason.ALREADY_HAS_ACTIVE_REQUEST -> "Ya tenés un pedido activo."
                     else -> "Revisá el vehículo y el problema."
@@ -222,7 +264,13 @@ class RiderViewModel @Inject constructor(
                 is RequestAssistanceUseCase.Result.NotSentYet -> shownLocalId.value = result.assistance.localId
                 else -> Unit
             }
-            form.update { RequestForm(vehicleId = it.vehicleId) }
+            if (result is RequestAssistanceUseCase.Result.Requested || result is RequestAssistanceUseCase.Result.NotSentYet) {
+                form.update { RequestForm(vehicleId = it.vehicleId) }
+                cancelPickingLocation()
+            } else {
+                // Lo escrito se conserva ante un error (RNF07).
+                form.update { it.copy(sending = false) }
+            }
         }
     }
 

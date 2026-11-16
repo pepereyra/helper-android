@@ -24,10 +24,11 @@ import com.helper.mobile.domain.repository.AuthRepository
 import com.helper.mobile.domain.repository.ProfileRepository
 import com.helper.mobile.domain.repository.SessionRepository
 import com.helper.mobile.ui.login.LoginScreen
-import com.helper.mobile.ui.mechanic.MechanicScreen
+import com.helper.mobile.ui.common.LoadingSkeleton
+import com.helper.mobile.ui.home.MechanicHome
+import com.helper.mobile.ui.home.RiderHome
 import com.helper.mobile.ui.mechanic.PendingVerificationScreen
 import com.helper.mobile.ui.profile.ProfileScreen
-import com.helper.mobile.ui.rider.RiderScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,7 +106,7 @@ fun HelperApp(viewModel: AppViewModel = hiltViewModel()) {
     Scaffold { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (val current = state) {
-                AppState.Loading -> Unit
+                AppState.Loading -> LoadingSkeleton()
                 AppState.LoggedOut -> LoginScreen()
                 is AppState.NeedsProfile -> ProfileScreen(
                     role = current.session.role,
@@ -113,9 +114,9 @@ fun HelperApp(viewModel: AppViewModel = hiltViewModel()) {
                     onLogout = viewModel::logout,
                 )
                 is AppState.LoggedIn -> when (current.session.role) {
-                    Role.RIDER -> RiderScreen()
+                    Role.RIDER -> RiderHome()
                     Role.MECHANIC -> if (current.session.verification == VerificationStatus.APPROVED) {
-                        MechanicScreen()
+                        MechanicHome()
                     } else {
                         PendingVerificationScreen(
                             rejected = current.session.verification == VerificationStatus.REJECTED,
