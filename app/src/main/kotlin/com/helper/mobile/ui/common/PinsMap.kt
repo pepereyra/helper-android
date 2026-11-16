@@ -38,7 +38,7 @@ import org.osmdroid.util.GeoPoint as OsmPoint
 /** Un punto en el mapa. [isMain] es el del usuario (o el pedido, para el mecánico): va en naranja. */
 data class MapPin(val point: GeoPoint, val title: String, val isMain: Boolean = false)
 
-private const val ORANGE = 0xFFE2661D.toInt()
+internal const val ORANGE = 0xFFE2661D.toInt()
 private const val BLUE = 0xFF2F5BD3.toInt()
 private const val SINGLE_PIN_ZOOM = 16.0
 
@@ -84,7 +84,7 @@ fun PinsMap(
     )
 }
 
-private fun createMap(context: Context): MapView {
+internal fun createMap(context: Context): MapView {
     Configuration.getInstance().userAgentValue = BuildConfig.APPLICATION_ID
     return MapView(context).apply {
         setTileSource(TileSourceFactory.MAPNIK)
@@ -140,12 +140,12 @@ private fun frame(map: MapView, points: List<GeoPoint>) {
     if (map.zoomLevelDouble > 17.0) map.controller.setZoom(17.0)
 }
 
-private fun tinted(context: Context, color: Int): Drawable? =
+internal fun tinted(context: Context, color: Int): Drawable? =
     ContextCompat.getDrawable(context, org.osmdroid.library.R.drawable.marker_default)?.mutate()?.also {
         DrawableCompat.setTint(it, color)
     }
 
-private fun GeoPoint.toOsm() = OsmPoint(latitude, longitude)
+internal fun GeoPoint.toOsm() = OsmPoint(latitude, longitude)
 
 private val BUENOS_AIRES = GeoPoint(-34.6037, -58.3816)
 
