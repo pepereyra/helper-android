@@ -2,6 +2,10 @@
 
 package com.helper.mobile.ui.mechanic
 
+import com.helper.mobile.ui.common.NavigationMap
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import kotlinx.coroutines.Job
@@ -101,6 +105,9 @@ class MechanicViewModel @Inject constructor(
     /** El pedido que tomó: se recupera del servidor al abrir la app, así no se pierde si se cierra. */
     val job = MutableStateFlow<MechanicJob?>(null)
     val advancing = MutableStateFlow(false)
+
+    /** True después de tocar "Iniciar viaje": el mapa sigue al mecánico en vez de mostrar todo el camino. */
+    val traveling = MutableStateFlow(false)
 
     /** Dónde estaba el mecánico al ponerse disponible; es el otro pin del mapa de cada pedido. */
     val myLocation = MutableStateFlow<GeoPoint?>(null)
@@ -232,6 +239,7 @@ class MechanicViewModel @Inject constructor(
     }
 
     private fun stopNavigation() {
+        traveling.value = false
         navigation?.cancel()
         navigation = null
         route.value = null
@@ -239,6 +247,14 @@ class MechanicViewModel @Inject constructor(
     }
 
     /** M2: "Llegué, empezar el trabajo" y después "Terminar el trabajo". Necesita conexión. */
+    fun startTrip() {
+        traveling.value = true
+    }
+
+    fun showWholeRoute() {
+        traveling.value = false
+    }
+
     fun advance() {
         val current = job.value ?: return
         advancing.value = true
@@ -367,6 +383,9 @@ fun MechanicJobScreen(onBackToOffers: () -> Unit, viewModel: MechanicViewModel =
         if (current == null) {
             Text("No tenés un trabajo en curso.", style = MaterialTheme.typography.titleMedium)
             Text("Cuando tomes un pedido desde la pestaña Pedidos, lo vas a ver acá con la ruta hasta el repartidor.")
+        } else if (current.status == AssistanceStatus.MATCHED && current.location != null) {
+            val rider = current.location ?: return@Column
+            NavigationLayout(current, rider, me, online, viewModel, Modifier.weight(1f))
         } else {
             // La tarjeta se desplaza; el botón del paso siguiente queda fijo abajo, al alcance del pulgar.
             Column(
@@ -543,3 +562,109 @@ private fun RouteToRider(job: MechanicJob, me: GeoPoint?, viewModel: MechanicVie
         }
     }
 }
+
+/**
+ * Yendo hacia el repartidor: la indicación arriba, el mapa ocupa el resto de la pantalla y las acciones quedan
+ * abajo. "Iniciar viaje" pone el mapa en posición de viaje; "Ver todo el camino" lo vuelve a encuadrar entero.
+ */
+@Composable
+private fun NavigationLayout(
+    job: MechanicJob,
+    rider: GeoPoint,
+    me: GeoPoint?,
+    online: Boolean,
+    viewModel: MechanicViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val route by viewModel.route.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val traveling by viewModel.traveling.collectAsStateWithLifecycle()
+    val advancing by viewModel.advancing.collectAsStateWithLifecycle()
+    var showSteps by remember { mutableStateOf(false) }
+    val current = route
+    val now = progress
+
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${job.problemLabel} · ${job.vehicleType.label()}", style = MaterialTheme.typography.labelLarge)
+                val instruction = when {
+                    now?.arrived == true -> "Llegaste. El repartidor está acá."
+                    now?.nextStep != null -> (now.metersToNextStep?.let { "En ${it.asDistance()}: " } ?: "") +
+                        now.nextStep?.instruction.orEmpty()
+                    current != null && !current.byRoad -> "Andá hacia el pin naranja. No pudimos calcular la ruta por calle."
+                    else -> "Calculando la ruta…"
+                }
+                Text(
+                    instruction,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    current?.takeIf { now?.arrived != true }?.let {
+                        val left = now?.metersToDestination ?: it.distanceMeters
+                        val minutes = now?.minutesLeft?.takeIf { m -> m > 0 } ?: it.durationMinutes
+                        Text("Faltan ${left.asDistance()} · unos ${minutes.asEta()}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (current != null && current.steps.isNotEmpty()) {
+                        TextButton(onClick = { showSteps = true }) { Text("Pasos (${current.steps.size})") }
+                    }
+                }
+            }
+        }
+        NavigationMap(
+            rider = rider,
+            me = me,
+            route = current?.points.orEmpty(),
+            traveling = traveling,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)),
+        )
+        if (!online) Text("Necesitás conexión para avisar el avance.", style = MaterialTheme.typography.bodySmall)
+        if (traveling) {
+            Button(
+                onClick = viewModel::advance,
+                enabled = online && !advancing,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (advancing) "Un momento…" else "Llegué, empezar el trabajo") }
+            TextButton(onClick = viewModel::showWholeRoute, modifier = Modifier.fillMaxWidth()) { Text("Ver todo el camino") }
+        } else {
+            Button(onClick = viewModel::startTrip, modifier = Modifier.fillMaxWidth()) { Text("Iniciar viaje") }
+            OutlinedButton(
+                onClick = viewModel::advance,
+                enabled = online && !advancing,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (advancing) "Un momento…" else "Llegué, empezar el trabajo") }
+        }
+    }
+
+    if (showSteps && current != null) {
+        AlertDialog(
+            onDismissRequest = { showSteps = false },
+            title = { Text("Pasos hasta el repartidor") },
+            text = {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    current.steps.forEachIndexed { index, step ->
+                        val isNext = step == now?.nextStep
+                        Text(
+                            "${index + 1}. ${step.instruction}" +
+                                if (step.distanceMeters > 0) " (${step.distanceMeters.asDistance()})" else "",
+                            style = if (isNext) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSteps = false }) { Text("Cerrar") } },
+        )
+    }
+}
+
