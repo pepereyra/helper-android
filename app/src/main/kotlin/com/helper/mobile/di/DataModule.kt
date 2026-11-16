@@ -22,6 +22,7 @@ import com.helper.mobile.domain.repository.ProfileRepository
 import com.helper.mobile.data.repository.AssistanceRepositoryImpl
 import com.helper.mobile.data.repository.AuthRepositoryImpl
 import com.helper.mobile.data.repository.NearbyMechanicsRepositoryImpl
+import com.helper.mobile.data.repository.JobRepositoryImpl
 import com.helper.mobile.data.repository.OfferRepositoryImpl
 import com.helper.mobile.data.repository.RouteRepositoryImpl
 import com.helper.mobile.data.repository.ProblemCatalog
@@ -32,6 +33,7 @@ import com.helper.mobile.domain.repository.AssistanceRepository
 import com.helper.mobile.domain.repository.AuthRepository
 import com.helper.mobile.domain.repository.LocationProvider
 import com.helper.mobile.domain.repository.NearbyMechanicsRepository
+import com.helper.mobile.domain.repository.JobRepository
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.repository.PendingSendScheduler
 import com.helper.mobile.domain.repository.ProblemCatalogRepository
@@ -129,6 +131,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun offers(impl: OfferRepositoryImpl): OfferRepository
+
+    @Binds
+    abstract fun jobs(impl: JobRepositoryImpl): JobRepository
 
     @Binds
     abstract fun problems(impl: ProblemCatalog): ProblemCatalogRepository
