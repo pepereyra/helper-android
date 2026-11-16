@@ -109,6 +109,27 @@ class MechanicAndVehicleUseCasesTest {
             assertFalse(tracking.isStale)
         }
     }
+
+    @Test
+    fun `con la pantalla abierta y sin red, el pedido pasa a vencido solo cuando se cumplen los 15 minutos`() = runTest {
+        val time = FakeTime()
+        val assistances = FakeAssistances()
+        assistances.saveLocal(
+            Assistance(
+                localId = "a1", remoteId = null, vehicleId = "v1", vehicleType = VehicleType.BICYCLE,
+                problemCode = "FLAT_TIRE", description = null, location = OBELISCO,
+                confirmedAt = time.now(), status = AssistanceStatus.NOT_SENT,
+            ),
+        )
+
+        ObserveAssistanceUseCase(assistances, PendingRequestPolicy(), time)("a1").test {
+            assertFalse(awaitItem()!!.isExpired)
+            // Nada cambia en la base: solo pasa el tiempo.
+            time.advance(Duration.ofMinutes(15))
+            testScheduler.advanceTimeBy(ObserveAssistanceUseCase.RECHECK_EVERY.toMillis() + 1)
+            assertTrue(awaitItem()!!.isExpired)
+        }
+    }
 }
 
 class LoginUseCaseTest {
