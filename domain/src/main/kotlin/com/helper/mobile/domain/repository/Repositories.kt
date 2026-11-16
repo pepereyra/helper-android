@@ -82,8 +82,8 @@ interface NearbyMechanicsRepository {
 }
 
 interface RouteRepository {
-    /** Ruta para ir de [from] a [to] con ese vehículo; null si no hay conexión. */
-    suspend fun route(from: GeoPoint, to: GeoPoint, vehicleType: VehicleType?): Route?
+    /** Ruta para ir de [from] a [to], con el mismo perfil que el tiempo de las ofertas; null si no hay conexión. */
+    suspend fun route(from: GeoPoint, to: GeoPoint): Route?
 }
 
 interface LocationProvider {

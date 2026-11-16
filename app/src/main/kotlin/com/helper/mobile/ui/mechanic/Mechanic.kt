@@ -211,7 +211,7 @@ class MechanicViewModel @Inject constructor(
                     myLocation.value = here
                     val current = route.value
                     if (online.value && (current == null || current.isOffRoute(here) || (!current.byRoad && tick % 6 == 0))) {
-                        routes.route(here, destination, job.vehicleType)?.let { route.value = it }
+                        routes.route(here, destination)?.let { route.value = it }
                     }
                     if (online.value && tick % 3 == 0) status.setAvailable(available.value, here)
                     progress.value = route.value?.progress(here, destination)
