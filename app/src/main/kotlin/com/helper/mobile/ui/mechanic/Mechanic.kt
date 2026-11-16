@@ -11,6 +11,7 @@ import com.helper.mobile.domain.model.isOffRoute
 import com.helper.mobile.domain.model.Route
 import com.helper.mobile.domain.model.NavigationProgress
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.runtime.setValue
@@ -47,7 +48,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.helper.mobile.data.network.ConnectivityObserver
+import com.helper.mobile.domain.model.AssistanceStatus
+import com.helper.mobile.domain.model.MechanicJob
 import com.helper.mobile.domain.model.Offer
+import com.helper.mobile.domain.repository.ActiveJobResult
+import com.helper.mobile.domain.repository.JobActionResult
+import com.helper.mobile.domain.repository.JobRepository
+import com.helper.mobile.domain.usecase.AdvanceJobUseCase
 import com.helper.mobile.domain.repository.AcceptResult
 import com.helper.mobile.domain.repository.AuthRepository
 import com.helper.mobile.domain.repository.AvailabilityResult
@@ -77,6 +84,8 @@ class MechanicViewModel @Inject constructor(
     private val status: MechanicStatusRepository,
     private val location: LocationProvider,
     private val routes: RouteRepository,
+    private val jobs: JobRepository,
+    private val advanceJob: AdvanceJobUseCase,
     connectivity: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -88,7 +97,9 @@ class MechanicViewModel @Inject constructor(
     val online: StateFlow<Boolean> =
         connectivity.isOnline.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val message = MutableStateFlow<String?>(null)
-    val taken = MutableStateFlow<Offer?>(null)
+    /** El pedido que tomó: se recupera del servidor al abrir la app, así no se pierde si se cierra. */
+    val job = MutableStateFlow<MechanicJob?>(null)
+    val advancing = MutableStateFlow(false)
 
     /** Dónde estaba el mecánico al ponerse disponible; es el otro pin del mapa de cada pedido. */
     val myLocation = MutableStateFlow<GeoPoint?>(null)
@@ -99,11 +110,34 @@ class MechanicViewModel @Inject constructor(
     private var navigation: Job? = null
 
     init {
-        // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta.
+        // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta. Si hay un trabajo abierto,
+        // se revisa que siga activo: el repartidor pudo haberlo cancelado.
         viewModelScope.launch {
             while (isActive) {
-                if (online.value) offerRepository.refresh()
+                if (online.value) {
+                    offerRepository.refresh()
+                    syncJob()
+                }
                 delay(10_000)
+            }
+        }
+    }
+
+    private suspend fun syncJob() {
+        val shown = job.value
+        if (shown?.status == AssistanceStatus.COMPLETED) return
+        val result = jobs.active()
+        if (result !is ActiveJobResult.Known) return
+        val current = result.job
+        when {
+            current == null && shown != null -> {
+                stopNavigation()
+                job.value = null
+                message.value = "El pedido ya no está activo: puede que el repartidor lo haya cancelado."
+            }
+            current != null && (shown == null || shown.assistanceId != current.assistanceId || shown.status != current.status) -> {
+                job.value = current
+                if (current.status == AssistanceStatus.MATCHED) startNavigation(current) else stopNavigation()
             }
         }
     }
@@ -112,8 +146,15 @@ class MechanicViewModel @Inject constructor(
         viewModelScope.launch {
             message.value = when (takeOffer(offer.assistanceId)) {
                 AcceptResult.Accepted -> {
-                    taken.value = offer
-                    startNavigation(offer)
+                    val taken = MechanicJob(
+                        assistanceId = offer.assistanceId,
+                        problemLabel = offer.problemLabel,
+                        vehicleType = offer.vehicleType,
+                        location = offer.location,
+                        status = AssistanceStatus.MATCHED,
+                    )
+                    job.value = taken
+                    startNavigation(taken)
                     null
                 }
                 AcceptResult.AlreadyTaken -> "Otro mecánico ya lo tomó."
@@ -159,8 +200,8 @@ class MechanicViewModel @Inject constructor(
      * Mientras va hacia el repartidor: cada 5 segundos lee el GPS y actualiza el próximo paso; cada 15 manda su
      * ubicación al servidor (así el repartidor lo ve moverse) y pide la ruta de nuevo si se desvió.
      */
-    private fun startNavigation(offer: Offer) {
-        val destination = offer.location ?: return
+    private fun startNavigation(job: MechanicJob) {
+        val destination = job.location ?: return
         navigation?.cancel()
         navigation = viewModelScope.launch {
             var tick = 0
@@ -182,12 +223,39 @@ class MechanicViewModel @Inject constructor(
         }
     }
 
-    /** Cierra el pedido tomado en la pantalla y vuelve a la lista. */
-    fun finishTrip() {
+    private fun stopNavigation() {
         navigation?.cancel()
-        taken.value = null
+        navigation = null
         route.value = null
         progress.value = null
+    }
+
+    /** M2: "Llegué, empezar el trabajo" y después "Terminar el trabajo". Necesita conexión. */
+    fun advance() {
+        val current = job.value ?: return
+        advancing.value = true
+        viewModelScope.launch {
+            message.value = when (val result = advanceJob(current)) {
+                is JobActionResult.Done -> {
+                    job.value = current.copy(status = result.status)
+                    if (result.status != AssistanceStatus.MATCHED) stopNavigation()
+                    null
+                }
+                JobActionResult.NoConnection -> "Sin conexión. Probá de nuevo cuando vuelva la señal."
+                is JobActionResult.Conflict -> {
+                    syncJob()
+                    "El pedido cambió mientras tanto. ${result.reason}"
+                }
+                is JobActionResult.Failed -> result.reason
+            }
+            advancing.value = false
+        }
+    }
+
+    /** Cierra el trabajo terminado y vuelve a la lista de pedidos. */
+    fun closeJob() {
+        stopNavigation()
+        job.value = null
     }
 
     fun pass(offer: Offer) {
@@ -209,7 +277,7 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
     val offers by viewModel.offers.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
-    val taken by viewModel.taken.collectAsStateWithLifecycle()
+    val job by viewModel.job.collectAsStateWithLifecycle()
     val available by viewModel.available.collectAsStateWithLifecycle()
     val changing by viewModel.changingAvailability.collectAsStateWithLifecycle()
     val me by viewModel.myLocation.collectAsStateWithLifecycle()
@@ -234,11 +302,11 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
         }
         if (!online) OfflineBanner("Sin conexión. No podés tomar pedidos hasta que vuelva la señal.")
         message?.let { Card(onClick = viewModel::dismissMessage) { Text(it, Modifier.padding(12.dp)) } }
-        taken?.let {
+        job?.let {
             // La lista de pasos puede ser larga: el viaje se desplaza solo (la lista de ofertas no se muestra).
-            Column(Modifier.verticalScroll(rememberScrollState())) { TripCard(it, me, viewModel) }
+            Column(Modifier.verticalScroll(rememberScrollState())) { TripCard(it, me, online, viewModel) }
         }
-        if (taken != null) return@Column
+        if (job != null) return@Column
         if (offers.isEmpty()) {
             Text(
                 if (available) {
@@ -316,57 +384,107 @@ private fun OfferMap(offer: Offer, me: GeoPoint?, height: Dp = 180.dp) {
     PinsMap(pins, description = "Mapa: dónde está el repartidor", height = height)
 }
 
-/** El pedido tomado: la indicación que sigue, el mapa con la ruta y la lista de pasos. Todo sin salir de la app. */
+/**
+ * M2 · Trabajo en curso. Aceptado: la indicación que sigue, el mapa con la ruta y "Llegué, empezar el trabajo".
+ * En curso: "Terminar el trabajo". Terminado: volver a los pedidos. Cada paso lo ve el repartidor en su seguimiento.
+ */
 @Composable
-private fun TripCard(offer: Offer, me: GeoPoint?, viewModel: MechanicViewModel) {
+private fun TripCard(job: MechanicJob, me: GeoPoint?, online: Boolean, viewModel: MechanicViewModel) {
+    val advancing by viewModel.advancing.collectAsStateWithLifecycle()
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${job.problemLabel} · ${job.vehicleType.label()}", style = MaterialTheme.typography.titleMedium)
+            JobStepper(job.status)
+            when (job.status) {
+                AssistanceStatus.MATCHED -> RouteToRider(job, me, viewModel)
+                AssistanceStatus.IN_PROGRESS -> {
+                    Text("Trabajando en el pedido", style = MaterialTheme.typography.headlineSmall)
+                    Text("Cuando termines, avisá desde acá: el repartidor lo ve en su seguimiento.")
+                }
+                AssistanceStatus.COMPLETED -> {
+                    Text("Trabajo terminado", style = MaterialTheme.typography.headlineSmall)
+                    Text("¡Gracias! Ya podés volver a ver pedidos cerca.")
+                }
+                else -> Text(job.status.label(), style = MaterialTheme.typography.headlineSmall)
+            }
+            val next = AdvanceJobUseCase.nextStepLabel(job.status)
+            if (next != null) {
+                Button(
+                    onClick = viewModel::advance,
+                    enabled = online && !advancing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (advancing) "Un momento…" else next) }
+                if (!online) Text("Necesitás conexión para avisar el avance.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Button(onClick = viewModel::closeJob, modifier = Modifier.fillMaxWidth()) { Text("Volver a los pedidos") }
+            }
+        }
+    }
+}
+
+/** Aceptado → En curso → Terminado, el mismo recorrido que ve el repartidor. */
+@Composable
+private fun JobStepper(status: AssistanceStatus) {
+    val steps = listOf("Aceptado", "En curso", "Terminado")
+    val reached = when (status) {
+        AssistanceStatus.MATCHED -> 0
+        AssistanceStatus.IN_PROGRESS -> 1
+        AssistanceStatus.COMPLETED -> 2
+        else -> -1
+    }
+    Text(
+        steps.mapIndexed { index, step -> if (index <= reached) "● $step" else "○ $step" }.joinToString("   "),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.semantics { contentDescription = "Estado del trabajo: ${steps.getOrElse(reached) { "" }}" },
+    )
+}
+
+/** Mientras va en camino: la indicación que sigue, el mapa con la ruta y la lista de pasos. Todo sin salir de la app. */
+@Composable
+private fun RouteToRider(job: MechanicJob, me: GeoPoint?, viewModel: MechanicViewModel) {
     val route by viewModel.route.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     var showSteps by remember { mutableStateOf(false) }
     val current = route
     val now = progress
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${offer.problemLabel} · ${offer.vehicleType.label()}", style = MaterialTheme.typography.titleMedium)
-            when {
-                now?.arrived == true -> Text("Llegaste. El repartidor está acá.", style = MaterialTheme.typography.headlineSmall)
-                now?.nextStep != null -> {
-                    val inMeters = now.metersToNextStep?.let { "En ${it.asDistance()}: " } ?: ""
-                    Text(
-                        inMeters + now.nextStep?.instruction.orEmpty(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
-                current != null && !current.byRoad -> Text("Andá hacia el pin naranja. No pudimos calcular la ruta por calle.")
-                else -> Text("Calculando la ruta…")
+    when {
+        now?.arrived == true -> Text("Llegaste. El repartidor está acá.", style = MaterialTheme.typography.headlineSmall)
+        now?.nextStep != null -> {
+            val inMeters = now.metersToNextStep?.let { "En ${it.asDistance()}: " } ?: ""
+            Text(
+                inMeters + now.nextStep?.instruction.orEmpty(),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+        current != null && !current.byRoad -> Text("Andá hacia el pin naranja. No pudimos calcular la ruta por calle.")
+        job.location == null -> Text("Andá hasta el repartidor.")
+        else -> Text("Calculando la ruta…")
+    }
+    current?.takeIf { now?.arrived != true }?.let {
+        val left = now?.metersToDestination ?: it.distanceMeters
+        val minutes = now?.minutesLeft?.takeIf { m -> m > 0 } ?: it.durationMinutes
+        Text("Faltan ${left.asDistance()} · unos ${minutes.asEta()}", style = MaterialTheme.typography.bodyMedium)
+    }
+    val rider = job.location
+    if (rider != null) {
+        val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), me?.let { MapPin(it, "Vos") })
+        PinsMap(pins, description = "Mapa con la ruta hasta el repartidor", height = 300.dp, route = current?.points.orEmpty())
+    }
+    if (current != null && current.steps.isNotEmpty()) {
+        TextButton(onClick = { showSteps = !showSteps }) {
+            Text(if (showSteps) "Ocultar los pasos" else "Ver todos los pasos (${current.steps.size})")
+        }
+        if (showSteps) {
+            current.steps.forEachIndexed { index, step ->
+                val isNext = step == now?.nextStep
+                Text(
+                    "${index + 1}. ${step.instruction}" + if (step.distanceMeters > 0) " (${step.distanceMeters.asDistance()})" else "",
+                    style = if (isNext) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                )
             }
-            current?.takeIf { now?.arrived != true }?.let {
-                val left = now?.metersToDestination ?: it.distanceMeters
-                val minutes = now?.minutesLeft?.takeIf { m -> m > 0 } ?: it.durationMinutes
-                Text("Faltan ${left.asDistance()} · unos ${minutes.asEta()}", style = MaterialTheme.typography.bodyMedium)
-            }
-            val rider = offer.location
-            if (rider != null) {
-                val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), me?.let { MapPin(it, "Vos") })
-                PinsMap(pins, description = "Mapa con la ruta hasta el repartidor", height = 300.dp, route = current?.points.orEmpty())
-            }
-            if (current != null && current.steps.isNotEmpty()) {
-                TextButton(onClick = { showSteps = !showSteps }) {
-                    Text(if (showSteps) "Ocultar los pasos" else "Ver todos los pasos (${current.steps.size})")
-                }
-                if (showSteps) {
-                    current.steps.forEachIndexed { index, step ->
-                        val isNext = step == now?.nextStep
-                        Text(
-                            "${index + 1}. ${step.instruction}" + if (step.distanceMeters > 0) " (${step.distanceMeters.asDistance()})" else "",
-                            style = if (isNext) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-            OutlinedButton(onClick = viewModel::finishTrip) { Text("Cerrar") }
         }
     }
 }
-

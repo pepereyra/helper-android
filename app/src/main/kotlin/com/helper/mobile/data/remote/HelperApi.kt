@@ -70,6 +70,18 @@ interface HelperApi {
     @GET("assistance/api/assistances/{id}")
     suspend fun assistance(@Path("id") id: String): Response<AssistanceResponse>
 
+    /** Para el mecánico: sus trabajos, del más nuevo al más viejo (el id sale del token). */
+    @GET("assistance/api/assistances")
+    suspend fun myAssistances(): Response<List<AssistanceResponse>>
+
+    /** El mecánico asignado llegó y empieza el trabajo: MATCHED → IN_PROGRESS (409 si no estaba aceptado). */
+    @POST("assistance/api/assistances/{id}/start")
+    suspend fun start(@Path("id") id: String): Response<AssistanceResponse>
+
+    /** El mecánico asignado termina el trabajo: IN_PROGRESS → COMPLETED. */
+    @POST("assistance/api/assistances/{id}/complete")
+    suspend fun complete(@Path("id") id: String): Response<AssistanceResponse>
+
     @POST("assistance/api/assistances/{id}/cancel")
     suspend fun cancel(@Path("id") id: String): Response<AssistanceResponse>
 

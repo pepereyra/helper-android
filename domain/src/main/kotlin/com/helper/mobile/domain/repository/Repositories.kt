@@ -3,6 +3,7 @@ package com.helper.mobile.domain.repository
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
+import com.helper.mobile.domain.model.MechanicJob
 import com.helper.mobile.domain.model.NearbyMechanic
 import com.helper.mobile.domain.model.Route
 import com.helper.mobile.domain.model.Offer
@@ -147,4 +148,27 @@ sealed interface AvailabilityResult {
 
 interface MechanicStatusRepository {
     suspend fun setAvailable(available: Boolean, location: GeoPoint): AvailabilityResult
+}
+
+sealed interface JobActionResult {
+    data class Done(val status: AssistanceStatus) : JobActionResult
+    data object NoConnection : JobActionResult
+    /** El pedido ya no está en el estado esperado, por ejemplo porque el repartidor lo canceló (409). */
+    data class Conflict(val reason: String) : JobActionResult
+    data class Failed(val reason: String) : JobActionResult
+}
+
+sealed interface ActiveJobResult {
+    /** [job] es null si el mecánico no tiene ningún trabajo abierto. */
+    data class Known(val job: MechanicJob?) : ActiveJobResult
+    /** Sin conexión o error: no se sabe, así que no se cambia lo que se muestra. */
+    data object Unknown : ActiveJobResult
+}
+
+/** Trabajo del mecánico después de tomar un pedido: empezarlo al llegar y terminarlo. */
+interface JobRepository {
+    /** El trabajo abierto (aceptado o en curso) según el servidor; sirve para recuperarlo al abrir la app. */
+    suspend fun active(): ActiveJobResult
+    suspend fun start(assistanceId: String): JobActionResult
+    suspend fun complete(assistanceId: String): JobActionResult
 }
