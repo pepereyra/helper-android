@@ -29,7 +29,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
-private const val INK = 0xFF2B2B2B.toInt()
+internal const val INK = 0xFF2B2B2B.toInt()
 private const val OVERVIEW_MAX_ZOOM = 18.0
 private const val TRAVEL_ZOOM = 18.5
 
@@ -139,7 +139,8 @@ private class NavigationMapState(val map: MapView) {
             return
         }
         val box = BoundingBox.fromGeoPoints(points.map { it.toOsm() })
-        map.zoomToBoundingBox(box.increaseByScale(1.15f), false, 64)
+        // Margen generoso: la flecha y el pin tienen que verse enteros aunque estén en la punta del camino.
+        map.zoomToBoundingBox(box.increaseByScale(1.2f), false, 160)
         if (map.zoomLevelDouble > OVERVIEW_MAX_ZOOM) map.controller.setZoom(OVERVIEW_MAX_ZOOM)
     }
 
@@ -153,7 +154,7 @@ private class NavigationMapState(val map: MapView) {
 }
 
 /** Calles en gris con más contraste: el único color fuerte del mapa es el naranja de la ruta. */
-private fun MapView.twoColors() {
+internal fun MapView.twoColors() {
     val gray = ColorMatrix().apply { setSaturation(0f) }
     val contrast = 1.25f
     val shift = -0.06f * 255
@@ -171,7 +172,7 @@ private fun MapView.twoColors() {
     maxZoomLevel = 19.0
 }
 
-private fun line(map: MapView, points: List<GeoPoint>, color: Int, width: Float) = Polyline(map).apply {
+internal fun line(map: MapView, points: List<GeoPoint>, color: Int, width: Float) = Polyline(map).apply {
     setPoints(points.map { it.toOsm() })
     outlinePaint.color = color
     outlinePaint.strokeWidth = width

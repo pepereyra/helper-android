@@ -39,7 +39,6 @@ import org.osmdroid.util.GeoPoint as OsmPoint
 data class MapPin(val point: GeoPoint, val title: String, val isMain: Boolean = false)
 
 internal const val ORANGE = 0xFFE2661D.toInt()
-private const val BLUE = 0xFF2F5BD3.toInt()
 private const val SINGLE_PIN_ZOOM = 16.0
 
 /**
@@ -55,7 +54,8 @@ fun PinsMap(
     route: List<GeoPoint> = emptyList(),
 ) {
     val context = LocalContext.current
-    val map = remember { createMap(context) }
+    // Mismo estilo que la navegación del mecánico: calles en gris, ruta y repartidor en naranja.
+    val map = remember { createMap(context).apply { twoColors() } }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, map) {
@@ -97,14 +97,8 @@ internal fun createMap(context: Context): MapView {
 private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>) {
     map.overlays.removeAll { it is Marker || it is Polyline }
     if (route.size >= 2) {
-        map.overlays.add(
-            Polyline(map).apply {
-                setPoints(route.map { it.toOsm() })
-                outlinePaint.color = BLUE
-                outlinePaint.strokeWidth = 12f
-                outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-            },
-        )
+        map.overlays.add(line(map, route, android.graphics.Color.WHITE, 18f))
+        map.overlays.add(line(map, route, ORANGE, 10f))
     }
     // El pin principal va último para que quede arriba si se superpone con otro.
     pins.sortedBy { it.isMain }.forEach { pin ->
@@ -113,7 +107,7 @@ private fun show(map: MapView, pins: List<MapPin>, route: List<GeoPoint>) {
                 position = pin.point.toOsm()
                 title = pin.title
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                icon = tinted(map.context, if (pin.isMain) ORANGE else BLUE)
+                icon = tinted(map.context, if (pin.isMain) ORANGE else INK)
             },
         )
     }
@@ -136,7 +130,7 @@ private fun frame(map: MapView, points: List<GeoPoint>) {
     }
     val box = BoundingBox.fromGeoPoints(points.map { it.toOsm() })
     // Margen para que los pines no queden pegados al borde; con pines muy juntos no se acerca de más.
-    map.zoomToBoundingBox(box.increaseByScale(1.6f), false, 48)
+    map.zoomToBoundingBox(box.increaseByScale(1.4f), false, 160)
     if (map.zoomLevelDouble > 17.0) map.controller.setZoom(17.0)
 }
 

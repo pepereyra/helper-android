@@ -129,7 +129,7 @@ class RiderViewModel @Inject constructor(
                 val current = tracking.value?.assistance
                 if (current != null && current.remoteId != null && !current.status.isFinal && online.value) {
                     refreshAssistance(current.localId)
-                    updateMechanicRoute()
+                    updateMechanicRoute(current.localId)
                 }
                 delay(5_000)
             }
@@ -161,8 +161,9 @@ class RiderViewModel @Inject constructor(
         }
     }
 
-    private suspend fun updateMechanicRoute() {
-        val assistance = tracking.value?.assistance ?: return
+    private suspend fun updateMechanicRoute(localId: String) {
+        // Se lee de la base recién actualizada: tracking todavía puede tener la posición anterior del mecánico.
+        val assistance = assistances.find(localId) ?: return
         val onTheWay = assistance.status == AssistanceStatus.MATCHED
         val mechanicAt = assistance.mechanic?.location
         if (!onTheWay || mechanicAt == null) {
