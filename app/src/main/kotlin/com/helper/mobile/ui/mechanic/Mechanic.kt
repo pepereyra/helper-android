@@ -54,7 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.helper.mobile.data.network.ConnectivityObserver
+import com.helper.mobile.data.network.Connectivity
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.MechanicJob
 import com.helper.mobile.domain.model.Offer
@@ -94,7 +94,7 @@ class MechanicViewModel @Inject constructor(
     private val routes: RouteRepository,
     private val jobs: JobRepository,
     private val advanceJob: AdvanceJobUseCase,
-    connectivity: ConnectivityObserver,
+    connectivity: Connectivity,
 ) : ViewModel() {
 
     val available = MutableStateFlow(false)

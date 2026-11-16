@@ -1,5 +1,7 @@
 package com.helper.mobile.di
 
+import com.helper.mobile.data.network.Connectivity
+import com.helper.mobile.data.network.ConnectivityObserver
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -149,6 +151,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun nearbyMechanics(impl: NearbyMechanicsRepositoryImpl): NearbyMechanicsRepository
+
+    @Binds
+    abstract fun connectivity(impl: ConnectivityObserver): Connectivity
 
     @Binds
     abstract fun routes(impl: RouteRepositoryImpl): RouteRepository

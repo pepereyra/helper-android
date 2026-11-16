@@ -14,11 +14,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Indica si hay red con salida a internet. La UI lo usa para el banner y para deshabilitar acciones que la requieren. */
+/** Si hay red con salida a internet. Es una interfaz para poder probar los ViewModels sin Android. */
+interface Connectivity {
+    val isOnline: Flow<Boolean>
+}
+
 @Singleton
 class ConnectivityObserver @Inject constructor(
     @param:ApplicationContext private val context: Context,
-) {
-    val isOnline: Flow<Boolean> = callbackFlow {
+) : Connectivity {
+    override val isOnline: Flow<Boolean> = callbackFlow {
         val manager = context.getSystemService(ConnectivityManager::class.java)
         fun current(): Boolean = manager.getNetworkCapabilities(manager.activeNetwork)
             ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true

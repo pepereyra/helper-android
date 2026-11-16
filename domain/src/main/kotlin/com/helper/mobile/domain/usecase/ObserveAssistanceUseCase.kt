@@ -6,7 +6,10 @@ import com.helper.mobile.domain.policy.PendingRequestPolicy
 import com.helper.mobile.domain.repository.AssistanceRepository
 import com.helper.mobile.domain.repository.TimeSource
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
@@ -28,8 +31,12 @@ class ObserveAssistanceUseCase @Inject constructor(
         val isExpired: Boolean,
     )
 
+    /**
+     * Se vuelve a evaluar cada [RECHECK_EVERY] aunque la base no cambie: sin red el worker no corre, y sin esto
+     * un pedido sin enviar seguiría diciendo "Todavía no pediste ayuda" después de vencido.
+     */
     operator fun invoke(localId: String): Flow<Tracking?> =
-        assistances.observe(localId).map { assistance ->
+        combine(assistances.observe(localId), ticks()) { assistance, _ ->
             assistance?.let {
                 val now = time.now()
                 val synced = it.lastSyncedAt
@@ -39,9 +46,17 @@ class ObserveAssistanceUseCase @Inject constructor(
                     (it.status == AssistanceStatus.NOT_SENT && policy.isExpired(it, now))
                 Tracking(it, synced, stale, expired)
             }
+        }.distinctUntilChanged()
+
+    private fun ticks(): Flow<Unit> = flow {
+        while (true) {
+            emit(Unit)
+            delay(RECHECK_EVERY.toMillis())
         }
+    }
 
     companion object {
         val STALE_AFTER: Duration = Duration.ofSeconds(30)
+        val RECHECK_EVERY: Duration = Duration.ofSeconds(15)
     }
 }

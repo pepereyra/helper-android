@@ -1,0 +1,22 @@
+Pedido e72c7e99-92b7-4a44-a05e-577078e37bb7
+  status   |         assigned_mechanic_id         
+-----------+--------------------------------------
+ CANCELLED | 2f1fb218-fd5a-444e-8e6a-602fd5be5d08
+(1 row)
+
+  status   
+-----------
+ CANCELLED
+(1 row)
+
+ from_status | to_status |          changed_at           
+-------------+-----------+-------------------------------
+             | REQUESTED | 2026-11-16 07:11:22.079834+00
+ REQUESTED   | MATCHED   | 2026-11-16 07:12:35.387264+00
+ MATCHED     | CANCELLED | 2026-11-16 07:12:41.389274+00
+(3 rows)
+
+c.h.dispatch.application.DispatchFacade  : Mechanic 2f1fb218-fd5a-444e-8e6a-602fd5be5d08 accepted assistance e72c7e99-92b7-4a44-a05e-577078e37bb7 in round 1
+c.h.d.i.m.AssistanceEventsListener       : Received ASSISTANCE_CANCELLED for assistance e72c7e99-92b7-4a44-a05e-577078e37bb7
+c.h.dispatch.application.DispatchFacade  : Dispatch of assistance e72c7e99-92b7-4a44-a05e-577078e37bb7 cancelled
+c.helper.shared.messaging.OutboxRelay    : Published ASSISTANCE_CANCELLED 5e6bf902-6e61-4e1f-9183-1c12b4859b5c to assistance.events (key e72c7e99-92b7-4a44-a05e-577078e37bb7)

@@ -89,7 +89,7 @@ UI (Compose) → ViewModel (StateFlow<UiState>) → Use case → Repository (int
 | DataStore | Sesión y preferencias |
 | Fused Location Provider | Ubicación del repartidor y del mecánico |
 | osmdroid (OpenStreetMap) | Mapas sin clave de API |
-| JUnit, kotlinx-coroutines-test | Tests del dominio |
+| JUnit, kotlinx-coroutines-test, MockK, Turbine | Tests del dominio, de los ViewModels y de los repositorios |
 | GitHub Actions | Compila, corre los tests y genera el APK de debug en cada PR |
 
 ## Cómo ejecutarla
@@ -117,6 +117,14 @@ Los tests y el APK, desde la terminal:
 
 El APK de debug también queda como artefacto en cada corrida de CI (Actions, "Android CI", `helper-debug-apk`).
 
+## Pruebas
+
+- **Tests unitarios** (`./gradlew :domain:test :app:testDebugUnitTest`; los de `:app` corren con Java 21):
+  - **Dominio:** casos de uso, la regla de pedidos pendientes y el avance por la ruta.
+  - **ViewModels del repartidor y del mecánico,** con los casos de uso reales y repositorios de prueba. Por ejemplo: sin señal, el pedido se guarda con la opción elegida; el taller no navega; si otro mecánico ganó, se avisa.
+  - **Repositorios de rutas y de mecánicos cercanos:** cómo se traduce la respuesta del backend.
+- **Pruebas de campo:** las 8 prometidas en la respuesta a la devolución, corridas en dos emuladores contra el backend local. Las capturas, los registros y la tabla de resultados están en [docs/evidencias](docs/evidencias/LEEME.md). La prueba 4 encontró un error, que ya está corregido: sin red, el pedido vencido seguía mostrándose como "Todavía no pediste ayuda".
+
 ## Decisiones relevantes
 
 - **El mecánico elige.** No hay asignación automática: el pedido se ofrece a los mecánicos cercanos y compatibles, y el primero que acepta gana. El servidor lo garantiza con una actualización condicional, y al segundo le responde `409`.
@@ -134,7 +142,7 @@ El APK de debug también queda como artefacto en cada corrida de CI (Actions, "A
 
 ## Limitaciones conocidas
 
-- **Tests.** Hay tests unitarios del dominio (casos de uso y reglas) y CI. No hay tests instrumentados de Compose ni tests de ViewModel o Room.
+- **Tests.** Hay tests unitarios del dominio, de los ViewModels del repartidor y del mecánico, y de los repositorios de mapas, además de CI. No hay tests instrumentados de Compose ni de Room.
 - **Tráfico sin cifrar.** La app usa HTTP sin TLS contra el backend local o de laboratorio. En producción iría HTTPS.
 - **Sin notificaciones push.** El mecánico ve las ofertas nuevas al refrescar la pantalla o al volver a ella.
 - **Teléfono del mecánico.** Los mecánicos registrados antes de que se agregara el teléfono no lo tienen, y para ellos no aparece "Llamar".
