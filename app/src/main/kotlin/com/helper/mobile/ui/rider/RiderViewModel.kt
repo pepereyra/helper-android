@@ -1,5 +1,6 @@
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.repository.RemoteActionResult
 import com.helper.mobile.domain.repository.RouteRepository
 import com.helper.mobile.domain.model.Route
@@ -169,6 +170,13 @@ class RiderViewModel @Inject constructor(
         if (!onTheWay || mechanicAt == null) {
             mechanicRoute.value = null
             routeFrom = null
+            return
+        }
+        if (assistance.mechanic?.kind == MechanicKind.WORKSHOP) {
+            // Al taller va el repartidor: la ruta es desde donde pidió ayuda hasta el taller, y no cambia.
+            if (mechanicRoute.value == null) {
+                routes.route(assistance.location, mechanicAt)?.let { mechanicRoute.value = it }
+            }
             return
         }
         val lastFrom = routeFrom

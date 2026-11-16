@@ -2,6 +2,7 @@
 
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.model.MechanicKind
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.helper.mobile.ui.common.asEta
@@ -231,7 +232,10 @@ private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null) {
         return
     }
     val pins = listOf(MapPin(me, "Vos", isMain = true)) +
-        nearby.map { MapPin(it.location, "${it.name} · a ${it.distanceMeters.asDistance()}") }
+        nearby.map {
+            val what = if (it.kind == MechanicKind.WORKSHOP) "Taller ${it.name}" else it.name
+            MapPin(it.location, "$what · a ${it.distanceMeters.asDistance()}")
+        }
     val summary = when (nearby.size) {
         0 -> "No hay mecánicos disponibles cerca por ahora."
         1 -> "1 mecánico disponible cerca."
@@ -292,7 +296,8 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
     val assistance = tracking.assistance
     ScrollingBody {
     AssistanceStepper(assistance.status)
-    Text(assistance.status.headline(), style = MaterialTheme.typography.headlineSmall)
+    val toWorkshop = assistance.mechanic?.kind == MechanicKind.WORKSHOP
+    Text(assistance.status.headline(toWorkshop), style = MaterialTheme.typography.headlineSmall)
     if (!online || tracking.isStale) {
         val since = tracking.lastSyncedAt?.asHour() ?: "—"
         OfflineBanner("Sin conexión. Este es el último estado conocido, de las $since.")
@@ -317,7 +322,19 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                         Text(name, style = MaterialTheme.typography.titleMedium)
                         val route by viewModel.mechanicRoute.collectAsStateWithLifecycle()
                         val coming = assistance.status == AssistanceStatus.MATCHED
-                        if (coming) {
+                        val workshop = mechanic.kind == MechanicKind.WORKSHOP
+                        if (workshop && coming) {
+                            Text("Llevá tu vehículo al taller", style = MaterialTheme.typography.bodyLarge)
+                            mechanic.address?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+                            route?.let {
+                                Text(
+                                    "Queda a ${it.distanceMeters.asDistance()} · unos ${it.durationMinutes.asEta()}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        } else if (workshop) {
+                            Text("Ya dejaste el vehículo y están trabajando en él", style = MaterialTheme.typography.bodyLarge)
+                        } else if (coming) {
                             // La ruta se recalcula mientras viene, así que su tiempo es más actual que el de la asignación.
                             (route?.durationMinutes ?: mechanic.etaMinutes)?.let {
                                 Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
@@ -326,7 +343,8 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                             Text("Ya llegó y está trabajando en tu vehículo", style = MaterialTheme.typography.bodyLarge)
                         }
                         val details = listOfNotNull(
-                            (route?.distanceMeters ?: mechanic.distanceMeters)?.takeIf { coming }?.let { "a ${it.asDistance()}" },
+                            (route?.distanceMeters ?: mechanic.distanceMeters)?.takeIf { coming && !workshop }
+                                ?.let { "a ${it.asDistance()}" },
                             mechanic.rating?.let { "%.1f de 5".format(it) },
                         ).joinToString(" · ")
                         if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
@@ -338,9 +356,14 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                 MapPin(assistance.location, "Vos", isMain = true),
                 mechanic.location?.let { MapPin(it, name) },
             )
-            // Cuando ya llegó, el mapa no aporta: solo se muestra mientras viene.
+            // Cuando ya llegó (o ya dejó el vehículo en el taller), el mapa no aporta: solo se muestra en camino.
             if (assistance.status == AssistanceStatus.MATCHED) {
-                PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
+                val description = if (mechanic.kind == MechanicKind.WORKSHOP) {
+                    "Mapa: el camino desde donde estás hasta $name"
+                } else {
+                    "Mapa: vos, $name y el camino"
+                }
+                PinsMap(pins, description = description, route = route?.points.orEmpty())
             }
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
@@ -357,7 +380,12 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
     val phone = mechanic?.phone
     if (onTheWay && mechanic != null && phone != null) {
         val context = LocalContext.current
-        val firstName = mechanic.name.ifBlank { "tu mecánico" }.substringBefore(' ')
+        // A un taller se lo nombra entero ("Taller Sur"); a una persona, por el nombre de pila.
+        val firstName = if (mechanic.kind == MechanicKind.WORKSHOP) {
+            mechanic.name.ifBlank { "el taller" }
+        } else {
+            mechanic.name.ifBlank { "tu mecánico" }.substringBefore(' ')
+        }
         OutlinedButton(
             onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) },
             modifier = Modifier.fillMaxWidth(),
@@ -378,10 +406,10 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
 }
 
 /** Título grande del seguimiento, como en los bocetos 05 y 06. */
-private fun AssistanceStatus.headline(): String = when (this) {
+private fun AssistanceStatus.headline(toWorkshop: Boolean): String = when (this) {
     AssistanceStatus.REQUESTED -> "Esperando que un mecánico acepte"
-    AssistanceStatus.MATCHED -> "Un mecánico aceptó y va en camino"
-    AssistanceStatus.IN_PROGRESS -> "El mecánico está trabajando"
+    AssistanceStatus.MATCHED -> if (toWorkshop) "Un taller aceptó: llevá tu vehículo" else "Un mecánico aceptó y va en camino"
+    AssistanceStatus.IN_PROGRESS -> if (toWorkshop) "El taller está trabajando" else "El mecánico está trabajando"
     else -> label()
 }
 

@@ -23,6 +23,9 @@ data class CreateMechanicRequest(
     val longitude: Double,
     val skills: Set<String>,
     val vehicleTypes: Set<String>,
+    /** MOBILE o WORKSHOP; un taller manda su dirección y es obligatorio el teléfono. */
+    val kind: String = "MOBILE",
+    val address: String? = null,
 )
 
 @Serializable
@@ -99,6 +102,8 @@ data class MechanicResponse(
     val name: String,
     val email: String? = null,
     val phone: String? = null,
+    val kind: String? = null,
+    val address: String? = null,
     val latitude: Double,
     val longitude: Double,
     val rating: Double? = null,
@@ -111,6 +116,7 @@ data class MechanicResponse(
 data class NearbyMechanicResponse(
     val id: String,
     val name: String,
+    val kind: String? = null,
     val latitude: Double,
     val longitude: Double,
     val distanceKm: Double,

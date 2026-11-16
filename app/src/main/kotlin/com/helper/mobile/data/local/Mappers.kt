@@ -1,5 +1,6 @@
 package com.helper.mobile.data.local
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.model.AssignedMechanic
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
@@ -51,6 +52,8 @@ fun AssistanceEntity.toDomain() = Assistance(
                 null
             },
             phone = mechanicPhone,
+            kind = MechanicKind.from(mechanicKind),
+            address = mechanicAddress,
         )
     },
     lastSyncedAt = lastSyncedAtMillis?.let(Instant::ofEpochMilli),
@@ -77,6 +80,8 @@ fun Assistance.toEntity() = AssistanceEntity(
     mechanicLatitude = mechanic?.location?.latitude,
     mechanicLongitude = mechanic?.location?.longitude,
     mechanicPhone = mechanic?.phone,
+    mechanicKind = mechanic?.kind?.name,
+    mechanicAddress = mechanic?.address,
     lastSyncedAtMillis = lastSyncedAt?.toEpochMilli(),
     needsLocationConfirmation = needsLocationConfirmation,
     rating = rating,

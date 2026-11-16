@@ -119,6 +119,8 @@ class AssistanceRepositoryImpl @Inject constructor(
                         mechanicLatitude = profile?.latitude ?: local.mechanicLatitude,
                         mechanicLongitude = profile?.longitude ?: local.mechanicLongitude,
                         mechanicPhone = profile?.phone ?: local.mechanicPhone,
+                        mechanicKind = profile?.kind ?: local.mechanicKind,
+                        mechanicAddress = profile?.address ?: local.mechanicAddress,
                         mechanicEtaMinutes = body.assignedEtaMinutes ?: local.mechanicEtaMinutes,
                         mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
                         rating = body.rating ?: local.rating,

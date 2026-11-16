@@ -1,5 +1,6 @@
 package com.helper.mobile.data.repository
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.data.remote.ApiResult
 import com.helper.mobile.data.remote.HelperApi
 import com.helper.mobile.data.remote.apiCall
@@ -24,6 +25,7 @@ class NearbyMechanicsRepositoryImpl @Inject constructor(
                     name = it.name,
                     location = GeoPoint(it.latitude, it.longitude),
                     distanceMeters = it.distanceKm * 1000,
+                    kind = MechanicKind.from(it.kind),
                 )
             }
             else -> null

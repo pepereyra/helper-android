@@ -2,6 +2,8 @@
 
 package com.helper.mobile.ui.mechanic
 
+import androidx.compose.foundation.layout.Spacer
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.ui.common.NavigationMap
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,6 +108,10 @@ class MechanicViewModel @Inject constructor(
     val job = MutableStateFlow<MechanicJob?>(null)
     val advancing = MutableStateFlow(false)
 
+    /** Taller o mecánico móvil: el taller no navega, espera al repartidor. */
+    val kind = MutableStateFlow(MechanicKind.MOBILE)
+    private var workshopLocation: GeoPoint? = null
+
     /** True después de tocar "Iniciar viaje": el mapa sigue al mecánico en vez de mostrar todo el camino. */
     val traveling = MutableStateFlow(false)
 
@@ -118,16 +124,10 @@ class MechanicViewModel @Inject constructor(
     private var navigation: Job? = null
 
     init {
-        // El interruptor arranca como está en el servidor: si ya estaba disponible, sigue recibiendo pedidos.
         viewModelScope.launch {
-            status.current()?.let {
-                available.value = it.available
-                if (myLocation.value == null) myLocation.value = it.location
-            }
-        }
-        // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta. Si hay un trabajo abierto,
-        // se revisa que siga activo: el repartidor pudo haberlo cancelado.
-        viewModelScope.launch {
+            loadProfile()
+            // Las ofertas se refrescan cada 10 segundos mientras la pantalla está abierta. Si hay un trabajo
+            // abierto, se revisa que siga activo: el repartidor pudo haberlo cancelado.
             while (isActive) {
                 if (online.value) {
                     offerRepository.refresh()
@@ -189,7 +189,8 @@ class MechanicViewModel @Inject constructor(
     fun setAvailable(wanted: Boolean) {
         changingAvailability.value = true
         viewModelScope.launch {
-            val here = location.currentLocation()
+            // El taller está siempre en su dirección; el servidor igual no le cambia la ubicación.
+            val here = workshopLocation ?: location.currentLocation()
             message.value = if (here == null) {
                 "Necesitamos tu ubicación para mostrarte pedidos cercanos."
             } else {
@@ -215,7 +216,28 @@ class MechanicViewModel @Inject constructor(
      * Mientras va hacia el repartidor: cada 5 segundos lee el GPS y actualiza el próximo paso; cada 15 manda su
      * ubicación al servidor (así el repartidor lo ve moverse) y pide la ruta de nuevo si se desvió.
      */
+    /**
+     * El interruptor arranca como está en el servidor (si ya estaba disponible, sigue recibiendo pedidos) y se
+     * sabe si es un taller (un taller no navega). Se llama también al entrar a la pantalla: el ViewModel vive
+     * con la actividad y pudo haber entrado otra cuenta en el mismo teléfono.
+     */
+    suspend fun loadProfile() {
+        val state = status.current() ?: return
+        available.value = state.available
+        kind.value = state.kind
+        workshopLocation = state.location.takeIf { state.kind == MechanicKind.WORKSHOP }
+        myLocation.value = state.location
+        if (state.kind == MechanicKind.WORKSHOP) {
+            navigation?.cancel()
+            route.value = null
+            progress.value = null
+            traveling.value = false
+        }
+    }
+
     private fun startNavigation(job: MechanicJob) {
+        // El taller no va a ningún lado: el repartidor le lleva el vehículo.
+        if (kind.value == MechanicKind.WORKSHOP) return
         val destination = job.location ?: return
         navigation?.cancel()
         navigation = viewModelScope.launch {
@@ -298,6 +320,7 @@ class MechanicViewModel @Inject constructor(
 /** M1 · Pedidos cerca (RF04). Tomar requiere conexión: gana el primero que acepta en el servidor. */
 @Composable
 fun MechanicOffersScreen(onOpenJob: () -> Unit, viewModel: MechanicViewModel = hiltViewModel()) {
+    val kind by viewModel.kind.collectAsStateWithLifecycle()
     val offers by viewModel.offers.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -349,7 +372,7 @@ fun MechanicOffersScreen(onOpenJob: () -> Unit, viewModel: MechanicViewModel = h
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(offer.problemLabel, style = MaterialTheme.typography.titleMedium)
                         Text(offer.vehicleType.label())
-                        Text(offer.howFar())
+                        Text(offer.howFar(workshop = kind == MechanicKind.WORKSHOP))
                         OfferMap(offer, me)
                         Text("Disponible hasta las ${offer.expiresAt.asHour()}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -370,6 +393,8 @@ fun MechanicJobScreen(onBackToOffers: () -> Unit, viewModel: MechanicViewModel =
     val message by viewModel.message.collectAsStateWithLifecycle()
     val job by viewModel.job.collectAsStateWithLifecycle()
     val me by viewModel.myLocation.collectAsStateWithLifecycle()
+    val kind by viewModel.kind.collectAsStateWithLifecycle()
+    val isWorkshop = kind == MechanicKind.WORKSHOP
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -383,6 +408,8 @@ fun MechanicJobScreen(onBackToOffers: () -> Unit, viewModel: MechanicViewModel =
         if (current == null) {
             Text("No tenés un trabajo en curso.", style = MaterialTheme.typography.titleMedium)
             Text("Cuando tomes un pedido desde la pestaña Pedidos, lo vas a ver acá con la ruta hasta el repartidor.")
+        } else if (current.status == AssistanceStatus.MATCHED && isWorkshop) {
+            WorkshopWaiting(current, me, online, viewModel, Modifier.weight(1f))
         } else if (current.status == AssistanceStatus.MATCHED && current.location != null) {
             val rider = current.location ?: return@Column
             NavigationLayout(current, rider, me, online, viewModel, Modifier.weight(1f))
@@ -434,8 +461,9 @@ fun PendingVerificationScreen(rejected: Boolean, onCheckAgain: () -> Unit, onLog
 }
 
 /** "A 430 m por calle · unos 3 min". */
-private fun Offer.howFar(): String {
-    val distance = "A ${distanceMeters.asDistance()} " + if (distanceByRoad) "por calle" else "en línea recta"
+private fun Offer.howFar(workshop: Boolean = false): String {
+    val distance = (if (workshop) "El repartidor está a " else "A ") + distanceMeters.asDistance() + " " +
+        if (distanceByRoad) "por calle" else "en línea recta"
     return listOfNotNull(distance, etaMinutes?.let { "unos ${it.asEta()}" }).joinToString(" · ")
 }
 
@@ -665,6 +693,48 @@ private fun NavigationLayout(
             },
             confirmButton = { TextButton(onClick = { showSteps = false }) { Text("Cerrar") } },
         )
+    }
+}
+
+/**
+ * Taller con un pedido aceptado: el repartidor viene con el vehículo. Muestra dónde está y, cuando llega,
+ * "Recibí el vehículo" empieza el trabajo.
+ */
+@Composable
+private fun WorkshopWaiting(
+    job: MechanicJob,
+    workshop: GeoPoint?,
+    online: Boolean,
+    viewModel: MechanicViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val advancing by viewModel.advancing.collectAsStateWithLifecycle()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${job.problemLabel} · ${job.vehicleType.label()}", style = MaterialTheme.typography.labelLarge)
+                Text("El repartidor va hacia tu taller", style = MaterialTheme.typography.titleLarge)
+                Text("Le mostramos la dirección y cómo llegar. Cuando te deje el vehículo, avisá desde acá.")
+            }
+        }
+        val rider = job.location
+        if (rider != null) {
+            val pins = listOfNotNull(MapPin(rider, "Repartidor", isMain = true), workshop?.let { MapPin(it, "Tu taller") })
+            PinsMap(
+                pins,
+                description = "Mapa: dónde está el repartidor y tu taller",
+                modifier = Modifier.weight(1f),
+                height = Dp.Unspecified,
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+        if (!online) Text("Necesitás conexión para avisar el avance.", style = MaterialTheme.typography.bodySmall)
+        Button(
+            onClick = viewModel::advance,
+            enabled = online && !advancing,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (advancing) "Un momento…" else "Recibí el vehículo, empezar el trabajo") }
     }
 }
 

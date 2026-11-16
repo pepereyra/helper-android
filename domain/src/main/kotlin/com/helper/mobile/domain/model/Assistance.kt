@@ -36,6 +36,9 @@ data class AssignedMechanic(
     val location: GeoPoint? = null,
     /** Para el botón "Llamar"; null si el mecánico no lo cargó. */
     val phone: String? = null,
+    /** Un taller no viene: el repartidor lleva el vehículo a [address]. */
+    val kind: MechanicKind = MechanicKind.MOBILE,
+    val address: String? = null,
 )
 
 /** Mecánico disponible cerca del repartidor, para mostrarlo en el mapa antes y durante la búsqueda. */
@@ -45,6 +48,7 @@ data class NearbyMechanic(
     val location: GeoPoint,
     /** En línea recta. */
     val distanceMeters: Double,
+    val kind: MechanicKind = MechanicKind.MOBILE,
 )
 
 data class Assistance(

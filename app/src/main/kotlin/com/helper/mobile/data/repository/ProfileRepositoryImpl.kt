@@ -1,5 +1,6 @@
 package com.helper.mobile.data.repository
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.repository.MechanicState
 import com.helper.mobile.data.remote.ApiResult
 import com.helper.mobile.data.remote.AvailabilityRequest
@@ -59,6 +60,8 @@ class ProfileRepositoryImpl @Inject constructor(
         location: GeoPoint,
         skills: Set<String>,
         vehicleTypes: Set<VehicleType>,
+        kind: MechanicKind,
+        address: String?,
     ): RemoteActionResult = apiCall {
         api.createMechanic(
             CreateMechanicRequest(
@@ -68,6 +71,8 @@ class ProfileRepositoryImpl @Inject constructor(
                 longitude = location.longitude,
                 skills = skills,
                 vehicleTypes = vehicleTypes.map { it.name }.toSet(),
+                kind = kind.name,
+                address = address?.trim()?.ifEmpty { null },
             ),
         )
     }.toAction()
@@ -84,7 +89,7 @@ class ProfileRepositoryImpl @Inject constructor(
     override suspend fun current(): MechanicState? {
         val id = sessions.currentSession()?.userId ?: return null
         val body = (apiCall { api.mechanic(id) } as? ApiResult.Success)?.body ?: return null
-        return MechanicState(body.available, GeoPoint(body.latitude, body.longitude))
+        return MechanicState(body.available, GeoPoint(body.latitude, body.longitude), MechanicKind.from(body.kind))
     }
 
     private fun ApiResult<Unit>.toAction(): RemoteActionResult = when (this) {

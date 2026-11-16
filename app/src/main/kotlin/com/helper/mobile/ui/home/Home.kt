@@ -99,6 +99,8 @@ fun RiderHome() {
 fun MechanicHome(viewModel: MechanicViewModel = hiltViewModel()) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val job by viewModel.job.collectAsStateWithLifecycle()
+    // El ViewModel vive con la actividad: al entrar se vuelve a leer la cuenta (puede ser otra, o un taller).
+    LaunchedEffect(Unit) { viewModel.loadProfile() }
     LaunchedEffect(job?.assistanceId) {
         if (job != null) tab = 1
     }
