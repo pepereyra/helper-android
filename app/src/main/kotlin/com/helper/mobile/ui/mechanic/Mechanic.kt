@@ -2,6 +2,7 @@
 
 package com.helper.mobile.ui.mechanic
 
+import com.helper.mobile.ui.common.ScreenTitle
 import androidx.compose.foundation.layout.Spacer
 import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.ui.common.NavigationMap
@@ -335,7 +336,7 @@ fun MechanicOffersScreen(onOpenJob: () -> Unit, viewModel: MechanicViewModel = h
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Pedidos cerca", style = MaterialTheme.typography.headlineSmall)
+        ScreenTitle("Pedidos cerca")
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -401,7 +402,7 @@ fun MechanicJobScreen(onBackToOffers: () -> Unit, viewModel: MechanicViewModel =
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Trabajo", style = MaterialTheme.typography.headlineSmall)
+        ScreenTitle("Trabajo")
         if (!online) OfflineBanner("Sin conexión. Vas a poder avisar el avance cuando vuelva la señal.")
         message?.let { ErrorCard(it, onDismiss = viewModel::dismissMessage) }
         val current = job
@@ -441,13 +442,10 @@ fun PendingVerificationScreen(rejected: Boolean, onCheckAgain: () -> Unit, onLog
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            if (rejected) "No pudimos aprobar tu cuenta" else "Tu cuenta está en revisión",
-            style = MaterialTheme.typography.headlineSmall,
-        )
+        ScreenTitle(if (rejected) "No pudimos aprobar tu cuenta" else "Tu cuenta está en revisión")
         Text(
             if (rejected) {
                 "Revisá la documentación que cargaste o escribinos para volver a intentarlo."
