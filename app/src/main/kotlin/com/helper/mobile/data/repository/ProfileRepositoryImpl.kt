@@ -44,7 +44,7 @@ class ProfileRepositoryImpl @Inject constructor(
             ProfileSummary(name = it.fullName, email = it.email, phone = it.phone)
         }
         Role.MECHANIC -> (apiCall { api.mechanic(session.userId) } as? ApiResult.Success)?.body?.let {
-            ProfileSummary(name = it.name, email = it.email, phone = null)
+            ProfileSummary(name = it.name, email = it.email, phone = it.phone)
         }
         Role.ADMIN -> null
     }
@@ -54,6 +54,7 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun createMechanic(
         name: String,
+        phone: String,
         location: GeoPoint,
         skills: Set<String>,
         vehicleTypes: Set<VehicleType>,
@@ -61,6 +62,7 @@ class ProfileRepositoryImpl @Inject constructor(
         api.createMechanic(
             CreateMechanicRequest(
                 name = name.trim(),
+                phone = phone.trim().ifEmpty { null },
                 latitude = location.latitude,
                 longitude = location.longitude,
                 skills = skills,

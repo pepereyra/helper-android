@@ -141,6 +141,7 @@ interface ProfileRepository {
     suspend fun createRider(fullName: String, phone: String): RemoteActionResult
     suspend fun createMechanic(
         name: String,
+        phone: String,
         location: GeoPoint,
         skills: Set<String>,
         vehicleTypes: Set<VehicleType>,

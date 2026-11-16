@@ -18,6 +18,7 @@ data class CreateClientRequest(val fullName: String, val phone: String)
 @Serializable
 data class CreateMechanicRequest(
     val name: String,
+    val phone: String? = null,
     val latitude: Double,
     val longitude: Double,
     val skills: Set<String>,
@@ -92,6 +93,7 @@ data class MechanicResponse(
     val id: String,
     val name: String,
     val email: String? = null,
+    val phone: String? = null,
     val latitude: Double,
     val longitude: Double,
     val rating: Double? = null,

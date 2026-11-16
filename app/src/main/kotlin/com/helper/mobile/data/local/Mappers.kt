@@ -50,6 +50,7 @@ fun AssistanceEntity.toDomain() = Assistance(
             } else {
                 null
             },
+            phone = mechanicPhone,
         )
     },
     lastSyncedAt = lastSyncedAtMillis?.let(Instant::ofEpochMilli),
@@ -74,6 +75,7 @@ fun Assistance.toEntity() = AssistanceEntity(
     mechanicEtaMinutes = mechanic?.etaMinutes,
     mechanicLatitude = mechanic?.location?.latitude,
     mechanicLongitude = mechanic?.location?.longitude,
+    mechanicPhone = mechanic?.phone,
     lastSyncedAtMillis = lastSyncedAt?.toEpochMilli(),
     needsLocationConfirmation = needsLocationConfirmation,
 )

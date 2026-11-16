@@ -83,6 +83,7 @@ class ProfileViewModel @Inject constructor(
         val error = when {
             current.name.isBlank() -> "Ingresá tu nombre."
             role == Role.RIDER && current.phone.isBlank() -> "Ingresá un teléfono para que el mecánico te pueda llamar."
+            role == Role.MECHANIC && current.phone.isBlank() -> "Ingresá un teléfono para que el repartidor te pueda llamar."
             role == Role.MECHANIC && current.skills.isEmpty() -> "Elegí al menos un arreglo que hagas."
             role == Role.MECHANIC && current.vehicleTypes.isEmpty() -> "Elegí al menos un tipo de vehículo."
             else -> null
@@ -101,7 +102,7 @@ class ProfileViewModel @Inject constructor(
                 if (here == null) {
                     RemoteActionResult.Rejected("Necesitamos tu ubicación para mostrarte pedidos cercanos.")
                 } else {
-                    profiles.createMechanic(current.name, here, current.skills, current.vehicleTypes)
+                    profiles.createMechanic(current.name, current.phone, here, current.skills, current.vehicleTypes)
                 }
             }
             when (result) {
@@ -138,16 +139,15 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (role == Role.RIDER) {
-            OutlinedTextField(
-                value = state.phone,
-                onValueChange = viewModel::onPhone,
-                label = { Text("Teléfono") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
+        OutlinedTextField(
+            value = state.phone,
+            onValueChange = viewModel::onPhone,
+            label = { Text("Teléfono") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (role == Role.MECHANIC) {
             Text("¿Qué arreglos hacés?", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.skillOptions.forEach { option ->
