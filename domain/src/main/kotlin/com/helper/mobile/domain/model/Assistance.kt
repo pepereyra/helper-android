@@ -36,6 +36,9 @@ data class AssignedMechanic(
     val location: GeoPoint? = null,
     /** Para el botón "Llamar"; null si el mecánico no lo cargó. */
     val phone: String? = null,
+    /** Un taller no viene: el repartidor lleva el vehículo a [address]. */
+    val kind: MechanicKind = MechanicKind.MOBILE,
+    val address: String? = null,
 )
 
 /** Mecánico disponible cerca del repartidor, para mostrarlo en el mapa antes y durante la búsqueda. */
@@ -45,6 +48,7 @@ data class NearbyMechanic(
     val location: GeoPoint,
     /** En línea recta. */
     val distanceMeters: Double,
+    val kind: MechanicKind = MechanicKind.MOBILE,
 )
 
 data class Assistance(
@@ -66,6 +70,8 @@ data class Assistance(
     val needsLocationConfirmation: Boolean = false,
     /** Calificación de 1 a 5 que dio el repartidor al terminar; null si todavía no calificó. */
     val rating: Int? = null,
+    /** Lo que eligió al pedir: que vaya un mecánico ([MechanicKind.MOBILE]) o ir a un taller; null = cualquiera. */
+    val preferredKind: MechanicKind? = null,
 )
 
 /** Pedido ofrecido a un mecánico cercano. Lo toma el primero que acepta. */

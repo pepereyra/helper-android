@@ -2,6 +2,9 @@
 
 package com.helper.mobile.ui.profile
 
+import com.helper.mobile.ui.common.PickLocationMap
+import com.helper.mobile.domain.model.GeoPoint
+import com.helper.mobile.domain.model.MechanicKind
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +55,11 @@ data class ProfileUiState(
     val skillOptions: List<SkillOption> = emptyList(),
     val skills: Set<String> = emptySet(),
     val vehicleTypes: Set<VehicleType> = setOf(VehicleType.BICYCLE),
+    /** Solo mecánicos: si va hasta el repartidor o tiene un taller fijo. */
+    val kind: MechanicKind = MechanicKind.MOBILE,
+    val address: String = "",
+    /** El lugar del taller, marcado en el mapa. */
+    val workshopLocation: GeoPoint? = null,
     val saving: Boolean = false,
     val error: String? = null,
 )
@@ -75,6 +83,9 @@ class ProfileViewModel @Inject constructor(
 
     fun onName(value: String) = _state.update { it.copy(name = value, error = null) }
     fun onPhone(value: String) = _state.update { it.copy(phone = value, error = null) }
+    fun onKind(value: MechanicKind) = _state.update { it.copy(kind = value, error = null) }
+    fun onAddress(value: String) = _state.update { it.copy(address = value, error = null) }
+    fun onWorkshopLocation(value: GeoPoint) = _state.update { it.copy(workshopLocation = value, error = null) }
     fun toggleSkill(code: String) = _state.update { it.copy(skills = it.skills.toggle(code), error = null) }
     fun toggleVehicle(type: VehicleType) = _state.update { it.copy(vehicleTypes = it.vehicleTypes.toggle(type), error = null) }
 
@@ -86,6 +97,8 @@ class ProfileViewModel @Inject constructor(
             role == Role.MECHANIC && current.phone.isBlank() -> "Ingresá un teléfono para que el repartidor te pueda llamar."
             role == Role.MECHANIC && current.skills.isEmpty() -> "Elegí al menos un arreglo que hagas."
             role == Role.MECHANIC && current.vehicleTypes.isEmpty() -> "Elegí al menos un tipo de vehículo."
+            isWorkshop(role, current) && current.address.isBlank() -> "Ingresá la dirección del taller."
+            isWorkshop(role, current) && current.workshopLocation == null -> "Marcá en el mapa dónde está el taller."
             else -> null
         }
         if (error != null) {
@@ -97,12 +110,20 @@ class ProfileViewModel @Inject constructor(
             val result = if (role == Role.RIDER) {
                 profiles.createRider(current.name, current.phone)
             } else {
-                // La ubicación del taller sirve para ofrecerle pedidos cercanos.
-                val here = location.currentLocation()
-                if (here == null) {
+                // El taller queda donde lo marcó en el mapa; el mecánico móvil arranca donde está ahora.
+                val place = current.workshopLocation.takeIf { isWorkshop(role, current) } ?: location.currentLocation()
+                if (place == null) {
                     RemoteActionResult.Rejected("Necesitamos tu ubicación para mostrarte pedidos cercanos.")
                 } else {
-                    profiles.createMechanic(current.name, current.phone, here, current.skills, current.vehicleTypes)
+                    profiles.createMechanic(
+                        current.name,
+                        current.phone,
+                        place,
+                        current.skills,
+                        current.vehicleTypes,
+                        current.kind,
+                        current.address.takeIf { isWorkshop(role, current) },
+                    )
                 }
             }
             when (result) {
@@ -113,6 +134,8 @@ class ProfileViewModel @Inject constructor(
             _state.update { it.copy(saving = false) }
         }
     }
+
+    private fun isWorkshop(role: Role, state: ProfileUiState) = role == Role.MECHANIC && state.kind == MechanicKind.WORKSHOP
 
     private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
 }
@@ -139,10 +162,42 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Completá tu perfil", style = MaterialTheme.typography.headlineSmall)
+            val workshop = role == Role.MECHANIC && state.kind == MechanicKind.WORKSHOP
+            if (role == Role.MECHANIC) {
+                Text("¿Cómo trabajás?", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.kind == MechanicKind.MOBILE,
+                        onClick = { viewModel.onKind(MechanicKind.MOBILE) },
+                        label = { Text("Voy hasta el repartidor") },
+                    )
+                    FilterChip(
+                        selected = state.kind == MechanicKind.WORKSHOP,
+                        onClick = { viewModel.onKind(MechanicKind.WORKSHOP) },
+                        label = { Text("Tengo un taller") },
+                    )
+                }
+                Text(
+                    if (workshop) {
+                        "El repartidor lleva el vehículo a tu taller. Le mostramos la dirección y cómo llegar."
+                    } else {
+                        "Vas hasta donde está el repartidor. Te mostramos el camino."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onName,
-                label = { Text(if (role == Role.MECHANIC) "Nombre o nombre del taller" else "Nombre y apellido") },
+                label = {
+                    Text(
+                        when {
+                            workshop -> "Nombre del taller"
+                            role == Role.MECHANIC -> "Tu nombre"
+                            else -> "Nombre y apellido"
+                        },
+                    )
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -154,6 +209,17 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (workshop) {
+                OutlinedTextField(
+                    value = state.address,
+                    onValueChange = viewModel::onAddress,
+                    label = { Text("Dirección del taller") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("Tocá en el mapa dónde está el taller", style = MaterialTheme.typography.titleSmall)
+                PickLocationMap(selected = state.workshopLocation, onPick = viewModel::onWorkshopLocation, height = 260.dp)
+            }
             if (role == Role.MECHANIC) {
                 Text("¿Qué arreglos hacés?", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -180,7 +246,10 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
         }
         Button(
             onClick = {
-                if (role == Role.MECHANIC) {
+                if (role == Role.MECHANIC && state.kind == MechanicKind.WORKSHOP) {
+                    // El taller no usa el GPS: su lugar es el que marcó en el mapa.
+                    viewModel.save(role, onDone)
+                } else if (role == Role.MECHANIC) {
                     permissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                 } else {
                     viewModel.save(role, onDone)

@@ -62,6 +62,7 @@ class AssistanceRepositoryImpl @Inject constructor(
             latitude = assistance.location.latitude,
             longitude = assistance.location.longitude,
             clientCreatedAt = assistance.confirmedAt.toString(),
+            mechanicKind = assistance.preferredKind?.name,
         )
         return when (val result = apiCall { api.createAssistance(assistance.localId, body) }) {
             is ApiResult.Success -> SendResult.Accepted(result.body.id, result.body.status.toStatus())
@@ -119,6 +120,8 @@ class AssistanceRepositoryImpl @Inject constructor(
                         mechanicLatitude = profile?.latitude ?: local.mechanicLatitude,
                         mechanicLongitude = profile?.longitude ?: local.mechanicLongitude,
                         mechanicPhone = profile?.phone ?: local.mechanicPhone,
+                        mechanicKind = profile?.kind ?: local.mechanicKind,
+                        mechanicAddress = profile?.address ?: local.mechanicAddress,
                         mechanicEtaMinutes = body.assignedEtaMinutes ?: local.mechanicEtaMinutes,
                         mechanicDistanceMeters = body.assignedDistanceKm?.let { it * 1000 } ?: local.mechanicDistanceMeters,
                         rating = body.rating ?: local.rating,

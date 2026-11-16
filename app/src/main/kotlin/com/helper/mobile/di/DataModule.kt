@@ -13,6 +13,8 @@ import com.helper.mobile.data.local.MIGRATION_1_2
 import com.helper.mobile.data.local.MIGRATION_2_3
 import com.helper.mobile.data.local.MIGRATION_3_4
 import com.helper.mobile.data.local.MIGRATION_4_5
+import com.helper.mobile.data.local.MIGRATION_5_6
+import com.helper.mobile.data.local.MIGRATION_6_7
 import com.helper.mobile.data.local.StatusChangeDao
 import com.helper.mobile.data.local.OfferDao
 import com.helper.mobile.data.local.VehicleDao
@@ -67,7 +69,7 @@ object DataModule {
     @Singleton
     fun database(@ApplicationContext context: Context): HelperDatabase =
         Room.databaseBuilder(context, HelperDatabase::class.java, "helper.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .build()
 
     @Provides

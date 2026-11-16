@@ -2,6 +2,11 @@
 
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.model.NearbyMechanic
+import androidx.compose.ui.semantics.selected
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.BorderStroke
+import com.helper.mobile.domain.model.MechanicKind
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.helper.mobile.ui.common.asEta
@@ -135,7 +140,7 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
         PickLocationMap(selected = picked, onPick = viewModel::pickLocation)
         TextButton(onClick = viewModel::cancelPickingLocation) { Text("Usar el GPS del teléfono") }
     } else {
-        NearbyMap(viewModel)
+        NearbyMap(viewModel, onlyKind = form.mechanicKind)
     }
 
     Text("¿Con qué vehículo?", style = MaterialTheme.typography.titleMedium)
@@ -167,6 +172,24 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
             label = { Text("Contanos un poco más (opcional)") },
             modifier = Modifier.fillMaxWidth(),
         )
+        Text("¿Cómo querés que te ayuden?", style = MaterialTheme.typography.titleMedium)
+        val nearby by viewModel.nearby.collectAsStateWithLifecycle()
+        KindOption(
+            title = "A domicilio",
+            subtitle = "Un mecánico va hasta donde estás",
+            kind = MechanicKind.MOBILE,
+            nearby = nearby,
+            selected = form.mechanicKind == MechanicKind.MOBILE,
+            onSelect = viewModel::selectKind,
+        )
+        KindOption(
+            title = "Ir a un taller",
+            subtitle = "Llevás el vehículo; te mostramos cómo llegar",
+            kind = MechanicKind.WORKSHOP,
+            nearby = nearby,
+            selected = form.mechanicKind == MechanicKind.WORKSHOP,
+            onSelect = viewModel::selectKind,
+        )
     }
     }
     Button(
@@ -190,8 +213,10 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
             when {
                 form.sending -> "Pidiendo…"
                 picking && picked == null -> "Marcá tu ubicación en el mapa"
+                picking && form.mechanicKind == MechanicKind.WORKSHOP -> "Buscar taller desde acá"
                 picking -> "Pedir mecánico acá"
-                else -> "Pedir mecánico"
+                form.mechanicKind == MechanicKind.WORKSHOP -> "Buscar taller"
+                else -> "Pedir mecánico a domicilio"
             },
         )
     }
@@ -199,10 +224,12 @@ private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () 
 
 /** Mapa con el repartidor y los mecánicos disponibles cerca. Pide el permiso de ubicación si todavía no lo tiene. */
 @Composable
-private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null) {
+private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null, onlyKind: MechanicKind? = null) {
     val context = LocalContext.current
     val here by viewModel.myLocation.collectAsStateWithLifecycle()
-    val nearby by viewModel.nearby.collectAsStateWithLifecycle()
+    val all by viewModel.nearby.collectAsStateWithLifecycle()
+    // Solo los del tipo que eligió: a domicilio, mecánicos móviles; ir a un taller, talleres.
+    val nearby = if (onlyKind == null) all else all.filter { it.kind == onlyKind }
     var granted by remember { mutableStateOf(hasLocationPermission(context)) }
     val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         granted = hasLocationPermission(context)
@@ -231,11 +258,15 @@ private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null) {
         return
     }
     val pins = listOf(MapPin(me, "Vos", isMain = true)) +
-        nearby.map { MapPin(it.location, "${it.name} · a ${it.distanceMeters.asDistance()}") }
+        nearby.map {
+            val what = if (it.kind == MechanicKind.WORKSHOP) "Taller ${it.name}" else it.name
+            MapPin(it.location, "$what · a ${it.distanceMeters.asDistance()}")
+        }
+    val (one, many) = if (onlyKind == MechanicKind.WORKSHOP) "taller" to "talleres" else "mecánico" to "mecánicos"
     val summary = when (nearby.size) {
-        0 -> "No hay mecánicos disponibles cerca por ahora."
-        1 -> "1 mecánico disponible cerca."
-        else -> "${nearby.size} mecánicos disponibles cerca."
+        0 -> "No hay $many disponibles cerca por ahora."
+        1 -> "1 $one disponible cerca."
+        else -> "${nearby.size} $many disponibles cerca."
     }
     PinsMap(pins, description = "Mapa: vos y $summary")
     Text(summary, style = MaterialTheme.typography.bodySmall)
@@ -292,7 +323,9 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
     val assistance = tracking.assistance
     ScrollingBody {
     AssistanceStepper(assistance.status)
-    Text(assistance.status.headline(), style = MaterialTheme.typography.headlineSmall)
+    val toWorkshop = assistance.mechanic?.kind == MechanicKind.WORKSHOP ||
+        (assistance.mechanic == null && assistance.preferredKind == MechanicKind.WORKSHOP)
+    Text(assistance.status.headline(toWorkshop), style = MaterialTheme.typography.headlineSmall)
     if (!online || tracking.isStale) {
         val since = tracking.lastSyncedAt?.asHour() ?: "—"
         OfflineBanner("Sin conexión. Este es el último estado conocido, de las $since.")
@@ -301,8 +334,14 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
     }
     when (assistance.status) {
         AssistanceStatus.REQUESTED -> {
-            Text("Les avisamos a los mecánicos cercanos. El primero que acepte va hacia vos.")
-            NearbyMap(viewModel, center = assistance.location)
+            Text(
+                if (assistance.preferredKind == MechanicKind.WORKSHOP) {
+                    "Les avisamos a los talleres cercanos. Cuando uno acepte, te mostramos cómo llegar."
+                } else {
+                    "Les avisamos a los mecánicos cercanos. El primero que acepte va hacia vos."
+                },
+            )
+            NearbyMap(viewModel, center = assistance.location, onlyKind = assistance.preferredKind)
         }
         AssistanceStatus.MATCHED, AssistanceStatus.IN_PROGRESS -> assistance.mechanic?.let { mechanic ->
             val name = mechanic.name.ifBlank { "Tu mecánico" }
@@ -317,7 +356,19 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                         Text(name, style = MaterialTheme.typography.titleMedium)
                         val route by viewModel.mechanicRoute.collectAsStateWithLifecycle()
                         val coming = assistance.status == AssistanceStatus.MATCHED
-                        if (coming) {
+                        val workshop = mechanic.kind == MechanicKind.WORKSHOP
+                        if (workshop && coming) {
+                            Text("Llevá tu vehículo al taller", style = MaterialTheme.typography.bodyLarge)
+                            mechanic.address?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+                            route?.let {
+                                Text(
+                                    "Queda a ${it.distanceMeters.asDistance()} · unos ${it.durationMinutes.asEta()}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        } else if (workshop) {
+                            Text("Ya dejaste el vehículo y están trabajando en él", style = MaterialTheme.typography.bodyLarge)
+                        } else if (coming) {
                             // La ruta se recalcula mientras viene, así que su tiempo es más actual que el de la asignación.
                             (route?.durationMinutes ?: mechanic.etaMinutes)?.let {
                                 Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
@@ -326,7 +377,8 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                             Text("Ya llegó y está trabajando en tu vehículo", style = MaterialTheme.typography.bodyLarge)
                         }
                         val details = listOfNotNull(
-                            (route?.distanceMeters ?: mechanic.distanceMeters)?.takeIf { coming }?.let { "a ${it.asDistance()}" },
+                            (route?.distanceMeters ?: mechanic.distanceMeters)?.takeIf { coming && !workshop }
+                                ?.let { "a ${it.asDistance()}" },
                             mechanic.rating?.let { "%.1f de 5".format(it) },
                         ).joinToString(" · ")
                         if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
@@ -338,9 +390,14 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                 MapPin(assistance.location, "Vos", isMain = true),
                 mechanic.location?.let { MapPin(it, name) },
             )
-            // Cuando ya llegó, el mapa no aporta: solo se muestra mientras viene.
+            // Cuando ya llegó (o ya dejó el vehículo en el taller), el mapa no aporta: solo se muestra en camino.
             if (assistance.status == AssistanceStatus.MATCHED) {
-                PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
+                val description = if (mechanic.kind == MechanicKind.WORKSHOP) {
+                    "Mapa: el camino desde donde estás hasta $name"
+                } else {
+                    "Mapa: vos, $name y el camino"
+                }
+                PinsMap(pins, description = description, route = route?.points.orEmpty())
             }
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
@@ -357,7 +414,12 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
     val phone = mechanic?.phone
     if (onTheWay && mechanic != null && phone != null) {
         val context = LocalContext.current
-        val firstName = mechanic.name.ifBlank { "tu mecánico" }.substringBefore(' ')
+        // A un taller se lo nombra entero ("Taller Sur"); a una persona, por el nombre de pila.
+        val firstName = if (mechanic.kind == MechanicKind.WORKSHOP) {
+            mechanic.name.ifBlank { "el taller" }
+        } else {
+            mechanic.name.ifBlank { "tu mecánico" }.substringBefore(' ')
+        }
         OutlinedButton(
             onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) },
             modifier = Modifier.fillMaxWidth(),
@@ -378,10 +440,10 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
 }
 
 /** Título grande del seguimiento, como en los bocetos 05 y 06. */
-private fun AssistanceStatus.headline(): String = when (this) {
-    AssistanceStatus.REQUESTED -> "Esperando que un mecánico acepte"
-    AssistanceStatus.MATCHED -> "Un mecánico aceptó y va en camino"
-    AssistanceStatus.IN_PROGRESS -> "El mecánico está trabajando"
+private fun AssistanceStatus.headline(toWorkshop: Boolean): String = when (this) {
+    AssistanceStatus.REQUESTED -> if (toWorkshop) "Esperando que un taller acepte" else "Esperando que un mecánico acepte"
+    AssistanceStatus.MATCHED -> if (toWorkshop) "Un taller aceptó: llevá tu vehículo" else "Un mecánico aceptó y va en camino"
+    AssistanceStatus.IN_PROGRESS -> if (toWorkshop) "El taller está trabajando" else "El mecánico está trabajando"
     else -> label()
 }
 
@@ -574,6 +636,55 @@ private fun RatingCard(mechanicName: String?, rating: Int?, viewModel: RiderView
                 enabled = score > 0 && !sending,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (sending) "Enviando…" else "Calificar") }
+        }
+    }
+}
+
+/**
+ * Una opción del pedido, como en las apps de viajes: qué es, cuántos hay cerca y a qué distancia está el más
+ * cercano (en línea recta; el tiempo es una estimación, el real lo calcula el servidor al ofrecerlo).
+ */
+@Composable
+private fun KindOption(
+    title: String,
+    subtitle: String,
+    kind: MechanicKind,
+    nearby: List<NearbyMechanic>,
+    selected: Boolean,
+    onSelect: (MechanicKind) -> Unit,
+) {
+    val ofKind = nearby.filter { it.kind == kind }
+    val closest = ofKind.minOfOrNull { it.distanceMeters }
+    val availability = when {
+        closest == null -> "No hay cerca ahora"
+        else -> {
+            val count = if (ofKind.size == 1) "1 cerca" else "${ofKind.size} cerca"
+            // Misma estimación que usa el servidor sin rutas: línea recta con desvío, a 20 km/h.
+            val minutes = kotlin.math.ceil(closest * 1.3 / 1000 / 20 * 60).toInt().coerceAtLeast(1)
+            "$count · el más cercano a ${closest.asDistance()} · ~$minutes min"
+        }
+    }
+    Card(
+        onClick = { onSelect(kind) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { this.selected = selected },
+        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(if (kind == MechanicKind.WORKSHOP) "🏪" else "🛵", style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall)
+                Text(availability, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

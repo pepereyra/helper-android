@@ -1,5 +1,6 @@
 package com.helper.mobile.domain.repository
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
@@ -147,6 +148,8 @@ interface ProfileRepository {
         location: GeoPoint,
         skills: Set<String>,
         vehicleTypes: Set<VehicleType>,
+        kind: MechanicKind,
+        address: String?,
     ): RemoteActionResult
 }
 
@@ -159,7 +162,7 @@ sealed interface AvailabilityResult {
 }
 
 /** Cómo está el mecánico en el servidor; sirve para que el interruptor arranque como corresponde. */
-data class MechanicState(val available: Boolean, val location: GeoPoint)
+data class MechanicState(val available: Boolean, val location: GeoPoint, val kind: MechanicKind = MechanicKind.MOBILE)
 
 interface MechanicStatusRepository {
     suspend fun setAvailable(available: Boolean, location: GeoPoint): AvailabilityResult

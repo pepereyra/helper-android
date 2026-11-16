@@ -1,5 +1,6 @@
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.repository.RemoteActionResult
 import com.helper.mobile.domain.repository.RouteRepository
 import com.helper.mobile.domain.model.Route
@@ -47,6 +48,8 @@ data class RequestForm(
     val vehicleId: String? = null,
     val problemCode: String? = null,
     val description: String = "",
+    /** A domicilio (que vaya un mecánico) o ir a un taller, como en las apps de viajes. */
+    val mechanicKind: MechanicKind = MechanicKind.MOBILE,
     val sending: Boolean = false,
 )
 
@@ -171,6 +174,13 @@ class RiderViewModel @Inject constructor(
             routeFrom = null
             return
         }
+        if (assistance.mechanic?.kind == MechanicKind.WORKSHOP) {
+            // Al taller va el repartidor: la ruta es desde donde pidió ayuda hasta el taller, y no cambia.
+            if (mechanicRoute.value == null) {
+                routes.route(assistance.location, mechanicAt)?.let { mechanicRoute.value = it }
+            }
+            return
+        }
         val lastFrom = routeFrom
         if (lastFrom != null && lastFrom.distanceTo(mechanicAt) < ROUTE_REFRESH_METERS && mechanicRoute.value != null) return
         routes.route(mechanicAt, assistance.location)?.let {
@@ -200,6 +210,7 @@ class RiderViewModel @Inject constructor(
 
     fun selectVehicle(id: String) = form.update { it.copy(vehicleId = id, problemCode = null) }
     fun selectProblem(code: String) = form.update { it.copy(problemCode = code) }
+    fun selectKind(kind: MechanicKind) = form.update { it.copy(mechanicKind = kind) }
     fun describe(text: String) = form.update { it.copy(description = text) }
     fun dismissMessage() {
         message.value = null
@@ -264,7 +275,7 @@ class RiderViewModel @Inject constructor(
                 form.update { it.copy(sending = false) }
                 return@launch
             }
-            val result = requestAssistance(vehicleId, problemCode, current.description, here)
+            val result = requestAssistance(vehicleId, problemCode, current.description, here, current.mechanicKind)
             message.value = when (result) {
                 is RequestAssistanceUseCase.Result.Requested -> null
                 is RequestAssistanceUseCase.Result.NotSentYet -> null // la pantalla lo muestra en grande
@@ -283,7 +294,7 @@ class RiderViewModel @Inject constructor(
                 else -> Unit
             }
             if (result is RequestAssistanceUseCase.Result.Requested || result is RequestAssistanceUseCase.Result.NotSentYet) {
-                form.update { RequestForm(vehicleId = it.vehicleId) }
+                form.update { RequestForm(vehicleId = it.vehicleId, mechanicKind = it.mechanicKind) }
                 cancelPickingLocation()
             } else {
                 // Lo escrito se conserva ante un error (RNF07).

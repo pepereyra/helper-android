@@ -1,5 +1,6 @@
 package com.helper.mobile.domain.usecase
 
+import com.helper.mobile.domain.model.MechanicKind
 import com.helper.mobile.domain.model.Assistance
 import com.helper.mobile.domain.model.AssistanceStatus
 import com.helper.mobile.domain.model.GeoPoint
@@ -41,6 +42,7 @@ class RequestAssistanceUseCase @Inject constructor(
         problemCode: String,
         description: String?,
         location: GeoPoint,
+        preferredKind: MechanicKind? = null,
     ): Result {
         val vehicle = vehicles.findById(vehicleId) ?: return Result.Invalid(InvalidReason.UNKNOWN_VEHICLE)
         val problem = problems.problems().firstOrNull { it.code == problemCode }
@@ -62,6 +64,7 @@ class RequestAssistanceUseCase @Inject constructor(
             location = location,
             confirmedAt = time.now(),
             status = AssistanceStatus.NOT_SENT,
+            preferredKind = preferredKind,
         )
         assistances.saveLocal(assistance)
 
