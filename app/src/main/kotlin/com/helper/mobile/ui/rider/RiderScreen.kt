@@ -2,6 +2,9 @@
 
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.ui.common.AppIcons
+import androidx.compose.material3.Icon
+import com.helper.mobile.ui.common.ScreenTitle
 import com.helper.mobile.domain.model.NearbyMechanic
 import androidx.compose.ui.semantics.selected
 import androidx.compose.material3.CardDefaults
@@ -94,7 +97,7 @@ fun RiderScreen(onAddVehicle: () -> Unit, viewModel: RiderViewModel = hiltViewMo
                 showingHistory -> "Historial"
                 else -> "Tu pedido"
             }
-            Text(title, style = MaterialTheme.typography.headlineSmall)
+            ScreenTitle(title, onBack = if (showingHistory) viewModel::closeHistory else null)
         }
         if (!online && tracking == null) {
             OfflineBanner("Sin conexión. Si pedís ayuda ahora, el pedido queda guardado pero todavía no se envía.")
@@ -534,7 +537,6 @@ private fun ColumnScope.HistoryContent(tracking: Tracking, viewModel: RiderViewM
     val assistance = tracking.assistance
     val history by viewModel.history.collectAsStateWithLifecycle()
     ScrollingBody {
-    TextButton(onClick = viewModel::closeHistory) { Text("← Volver al pedido") }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
@@ -694,7 +696,12 @@ private fun KindOption(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(if (kind == MechanicKind.WORKSHOP) "🏪" else "🛵", style = MaterialTheme.typography.headlineSmall)
+            Icon(
+                if (kind == MechanicKind.WORKSHOP) AppIcons.Wrench else AppIcons.Bike,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(32.dp),
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall)

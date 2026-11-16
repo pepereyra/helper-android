@@ -134,7 +134,7 @@ fun HelperApp(viewModel: AppViewModel = hiltViewModel()) {
                         )
                     }
                     // La administración (aprobar mecánicos) se hace desde la consola web, no desde la app.
-                    Role.ADMIN -> Column(Modifier.padding(24.dp)) {
+                    Role.ADMIN -> Column(Modifier.padding(20.dp)) {
                         Text("Las cuentas de administración se usan desde la consola web.")
                         TextButton(onClick = viewModel::logout) { Text("Salir") }
                     }

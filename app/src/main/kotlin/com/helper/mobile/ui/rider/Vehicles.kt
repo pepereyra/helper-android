@@ -2,6 +2,7 @@
 
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.ui.common.ScreenTitle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +50,7 @@ fun VehiclesScreen(onAddVehicle: () -> Unit, viewModel: RiderViewModel = hiltVie
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Mis vehículos", style = MaterialTheme.typography.headlineSmall)
+        ScreenTitle("Mis vehículos")
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -119,7 +120,7 @@ fun AddVehicleScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: RiderVie
     var model by rememberSaveable { mutableStateOf("") }
     var color by rememberSaveable { mutableStateOf("") }
     var plate by rememberSaveable { mutableStateOf("") }
-    val message by viewModel.message.collectAsStateWithLifecycle()
+    val error by viewModel.vehicleError.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -127,10 +128,7 @@ fun AddVehicleScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: RiderVie
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←") }
-            Text("Nuevo vehículo", style = MaterialTheme.typography.headlineSmall)
-        }
+        ScreenTitle("Nuevo vehículo", onBack = onBack)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -155,7 +153,7 @@ fun AddVehicleScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: RiderVie
             if (type == VehicleType.MOTORCYCLE) {
                 OutlinedTextField(plate, { plate = it }, label = { Text("Patente") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
-            message?.let { ErrorCard(it, onDismiss = viewModel::dismissMessage) }
+            error?.let { ErrorCard(it, onDismiss = viewModel::dismissVehicleError) }
             Spacer(Modifier.size(4.dp))
         }
         Button(

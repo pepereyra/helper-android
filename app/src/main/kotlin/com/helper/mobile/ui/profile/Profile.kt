@@ -2,6 +2,7 @@
 
 package com.helper.mobile.ui.profile
 
+import com.helper.mobile.ui.common.ScreenTitle
 import com.helper.mobile.ui.common.PickLocationMap
 import com.helper.mobile.ui.common.PinIcon
 import com.helper.mobile.domain.model.GeoPoint
@@ -152,7 +153,7 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
@@ -162,7 +163,7 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Completá tu perfil", style = MaterialTheme.typography.headlineSmall)
+            ScreenTitle("Completá tu perfil")
             val workshop = role == Role.MECHANIC && state.kind == MechanicKind.WORKSHOP
             if (role == Role.MECHANIC) {
                 Text("¿Cómo trabajás?", style = MaterialTheme.typography.titleMedium)

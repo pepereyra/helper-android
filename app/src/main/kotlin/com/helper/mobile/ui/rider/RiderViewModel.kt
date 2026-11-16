@@ -235,14 +235,19 @@ class RiderViewModel @Inject constructor(
         requestHelp()
     }
 
+    /** Error del alta de vehículo: va aparte para que no se mezcle con los avisos del pedido. */
+    val vehicleError = MutableStateFlow<String?>(null)
+    fun dismissVehicleError() { vehicleError.value = null }
+
     fun addVehicle(type: VehicleType, brand: String, model: String, color: String?, plate: String?, onDone: () -> Unit) {
         viewModelScope.launch {
             when (val result = registerVehicle(type, brand, model, color, plate)) {
                 is RegisterVehicleUseCase.Result.Registered -> {
+                    vehicleError.value = null
                     form.update { it.copy(vehicleId = result.vehicle.id, problemCode = null) }
                     onDone()
                 }
-                is RegisterVehicleUseCase.Result.Invalid -> message.value = when (result.field) {
+                is RegisterVehicleUseCase.Result.Invalid -> vehicleError.value = when (result.field) {
                     "plate" -> "Para una moto, la patente es obligatoria."
                     else -> "Completá marca y modelo."
                 }
@@ -345,7 +350,8 @@ class RiderViewModel @Inject constructor(
         val localId = tracking.value?.assistance?.localId ?: return
         viewModelScope.launch {
             message.value = when (cancelAssistance(localId)) {
-                CancelAssistanceUseCase.Result.CANCELLED -> "Pedido cancelado."
+                // La pantalla ya lo dice en grande ("Cancelado"): no hace falta un aviso aparte.
+                CancelAssistanceUseCase.Result.CANCELLED -> null
                 CancelAssistanceUseCase.Result.NEEDS_CONNECTION -> "Para cancelar un pedido ya enviado necesitás conexión."
                 CancelAssistanceUseCase.Result.NOT_CANCELLABLE -> "Este pedido ya no se puede cancelar."
                 CancelAssistanceUseCase.Result.NOT_FOUND -> null
@@ -357,6 +363,9 @@ class RiderViewModel @Inject constructor(
     /** Cierra un pedido terminado o vencido y vuelve al formulario. */
     fun dismissTracking() {
         val current = tracking.value
+        // Los avisos eran de ese pedido: el formulario arranca limpio.
+        message.value = null
+        canRetry.value = false
         viewModelScope.launch {
             // Un pendiente vencido que el worker todavía no marcó: la política lo marca como vencido.
             if (current != null && current.isExpired && current.assistance.status == AssistanceStatus.NOT_SENT) {

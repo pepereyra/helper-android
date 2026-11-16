@@ -2,6 +2,14 @@
 
 package com.helper.mobile.ui.home
 
+import com.helper.mobile.ui.common.ScreenTitle
+import com.helper.mobile.ui.common.AppIcons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +56,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-private data class Tab(val label: String, val glyph: String)
+private data class Tab(val label: String, val icon: ImageVector)
 
 /** Barra inferior de Material 3 con tres destinos por rol, como en la preentrega. */
 @Composable
@@ -59,15 +67,15 @@ private fun HomeBar(tabs: List<Tab>, selected: Int, onSelect: (Int) -> Unit) {
                 selected = selected == index,
                 onClick = { onSelect(index) },
                 // El ícono es decorativo: TalkBack lee la etiqueta.
-                icon = { Text(tab.glyph, modifier = Modifier.clearAndSetSemantics { }) },
+                icon = { Icon(tab.icon, contentDescription = null) },
                 label = { Text(tab.label) },
             )
         }
     }
 }
 
-private val RIDER_TABS = listOf(Tab("Ayuda", "🛟"), Tab("Mis vehículos", "🛵"), Tab("Perfil", "👤"))
-private val MECHANIC_TABS = listOf(Tab("Pedidos", "📍"), Tab("Trabajo", "🔧"), Tab("Perfil", "👤"))
+private val RIDER_TABS = listOf(Tab("Ayuda", Icons.Filled.Build), Tab("Mis vehículos", AppIcons.Bike), Tab("Perfil", Icons.Filled.Person))
+private val MECHANIC_TABS = listOf(Tab("Pedidos", Icons.Filled.LocationOn), Tab("Trabajo", Icons.Filled.Build), Tab("Perfil", Icons.Filled.Person))
 
 /** Repartidor: Ayuda, Mis vehículos y Perfil. "Agregar vehículo" se abre en pantalla completa, sin la barra. */
 @Composable
@@ -156,7 +164,7 @@ fun AccountScreen(viewModel: AccountViewModel = hiltViewModel()) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Perfil", style = MaterialTheme.typography.headlineSmall)
+        ScreenTitle("Perfil")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val current = summary
