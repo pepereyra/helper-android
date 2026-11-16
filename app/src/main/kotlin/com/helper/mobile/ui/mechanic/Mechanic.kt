@@ -62,6 +62,7 @@ import com.helper.mobile.domain.repository.LocationProvider
 import com.helper.mobile.domain.repository.MechanicStatusRepository
 import com.helper.mobile.domain.repository.OfferRepository
 import com.helper.mobile.domain.usecase.TakeOfferUseCase
+import com.helper.mobile.ui.common.ErrorCard
 import com.helper.mobile.ui.common.OfflineBanner
 import com.helper.mobile.ui.common.asDistance
 import com.helper.mobile.ui.common.asHour
@@ -271,9 +272,9 @@ class MechanicViewModel @Inject constructor(
     }
 }
 
-/** RF04: pedidos cercanos. Tomar requiere conexión: gana el primero que acepta en el servidor. */
+/** M1 · Pedidos cerca (RF04). Tomar requiere conexión: gana el primero que acepta en el servidor. */
 @Composable
-fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
+fun MechanicOffersScreen(onOpenJob: () -> Unit, viewModel: MechanicViewModel = hiltViewModel()) {
     val offers by viewModel.offers.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -288,10 +289,7 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text("Pedidos cerca", style = MaterialTheme.typography.headlineSmall)
-            TextButton(onClick = viewModel::logout) { Text("Salir") }
-        }
+        Text("Pedidos cerca", style = MaterialTheme.typography.headlineSmall)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -301,10 +299,16 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
             Switch(checked = available, onCheckedChange = viewModel::setAvailable, enabled = online && !changing)
         }
         if (!online) OfflineBanner("Sin conexión. No podés tomar pedidos hasta que vuelva la señal.")
-        message?.let { Card(onClick = viewModel::dismissMessage) { Text(it, Modifier.padding(12.dp)) } }
+        message?.let { ErrorCard(it, onDismiss = viewModel::dismissMessage) }
         job?.let {
-            // La lista de pasos puede ser larga: el viaje se desplaza solo (la lista de ofertas no se muestra).
-            Column(Modifier.verticalScroll(rememberScrollState())) { TripCard(it, me, online, viewModel) }
+            // Con un trabajo abierto no se muestran otros pedidos: primero hay que terminarlo.
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Tenés un trabajo abierto", style = MaterialTheme.typography.titleMedium)
+                    Text("${it.problemLabel} · ${it.vehicleType.label()} · ${it.status.label()}")
+                    Button(onClick = onOpenJob, modifier = Modifier.fillMaxWidth()) { Text("Ver el trabajo") }
+                }
+            }
         }
         if (job != null) return@Column
         if (offers.isEmpty()) {
@@ -332,6 +336,33 @@ fun MechanicScreen(viewModel: MechanicViewModel = hiltViewModel()) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** M2 · Trabajo en curso: el pedido que tomó, con la ruta y los botones para empezarlo y terminarlo. */
+@Composable
+fun MechanicJobScreen(viewModel: MechanicViewModel = hiltViewModel()) {
+    val online by viewModel.online.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    val job by viewModel.job.collectAsStateWithLifecycle()
+    val me by viewModel.myLocation.collectAsStateWithLifecycle()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Trabajo", style = MaterialTheme.typography.headlineSmall)
+        if (!online) OfflineBanner("Sin conexión. Vas a poder avisar el avance cuando vuelva la señal.")
+        message?.let { ErrorCard(it, onDismiss = viewModel::dismissMessage) }
+        val current = job
+        if (current == null) {
+            Text("No tenés un trabajo en curso.", style = MaterialTheme.typography.titleMedium)
+            Text("Cuando tomes un pedido desde la pestaña Pedidos, lo vas a ver acá con la ruta hasta el repartidor.")
+        } else {
+            TripCard(current, me, online, viewModel)
         }
     }
 }

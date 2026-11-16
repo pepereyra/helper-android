@@ -77,11 +77,21 @@ data class AssistanceResponse(
     val longitude: Double? = null,
 )
 
+/** GET /api/clients/{id}: el perfil del repartidor. */
+@Serializable
+data class ClientResponse(
+    val id: String,
+    val fullName: String,
+    val phone: String? = null,
+    val email: String? = null,
+)
+
 /** GET /api/mechanics/{id}: lo que la app usa del perfil del mecánico asignado. */
 @Serializable
 data class MechanicResponse(
     val id: String,
     val name: String,
+    val email: String? = null,
     val latitude: Double,
     val longitude: Double,
     val rating: Double? = null,

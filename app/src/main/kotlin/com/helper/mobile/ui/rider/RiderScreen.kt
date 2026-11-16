@@ -37,7 +37,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -57,20 +56,22 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.helper.mobile.domain.model.AssistanceStatus
-import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.policy.PendingRequestPolicy
 import com.helper.mobile.domain.usecase.ObserveAssistanceUseCase.Tracking
+import com.helper.mobile.ui.common.ErrorCard
 import com.helper.mobile.ui.common.OfflineBanner
+import com.helper.mobile.ui.common.PickLocationMap
 import com.helper.mobile.ui.common.asDistance
 import com.helper.mobile.ui.common.asHour
 import com.helper.mobile.ui.common.label
 
 @Composable
-fun RiderScreen(viewModel: RiderViewModel = hiltViewModel()) {
+fun RiderScreen(onAddVehicle: () -> Unit, viewModel: RiderViewModel = hiltViewModel()) {
     val tracking by viewModel.tracking.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val showingHistory by viewModel.showingHistory.collectAsStateWithLifecycle()
+    val canRetry by viewModel.canRetry.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -86,17 +87,16 @@ fun RiderScreen(viewModel: RiderViewModel = hiltViewModel()) {
                 else -> "Tu pedido"
             }
             Text(title, style = MaterialTheme.typography.headlineSmall)
-            TextButton(onClick = viewModel::logout) { Text("Salir") }
         }
         if (!online && tracking == null) {
             OfflineBanner("Sin conexión. Si pedís ayuda ahora, el pedido queda guardado pero todavía no se envía.")
         }
         message?.let {
-            Card(onClick = viewModel::dismissMessage) { Text(it, modifier = Modifier.padding(12.dp)) }
+            ErrorCard(it, onDismiss = viewModel::dismissMessage, onRetry = if (canRetry) viewModel::retryLast else null)
         }
         val current = tracking
         when {
-            current == null -> RequestForm(viewModel)
+            current == null -> RequestForm(viewModel, onAddVehicle)
             showingHistory -> HistoryContent(current, viewModel)
             else -> TrackingContent(current, online, viewModel)
         }
@@ -104,21 +104,37 @@ fun RiderScreen(viewModel: RiderViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun RequestForm(viewModel: RiderViewModel) {
+private fun RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
     val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
     val problems by viewModel.problems.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
-    var addingVehicle by remember { mutableStateOf(false) }
+    val picking by viewModel.pickingLocation.collectAsStateWithLifecycle()
+    val picked by viewModel.pickedLocation.collectAsStateWithLifecycle()
+
+    // E2: sin vehículo no se puede pedir ayuda; la pantalla vacía lleva a registrarlo.
+    if (vehicles.isEmpty()) {
+        EmptyVehicles(onAddVehicle)
+        return
+    }
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         viewModel.requestHelp()
         viewModel.startNearbyUpdates()
     }
 
-    NearbyMap(viewModel)
+    if (picking) {
+        Text("Marcá dónde estás", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Tocá el mapa en el lugar donde quedaste. El mecánico va a ir hasta ahí.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        PickLocationMap(selected = picked, onPick = viewModel::pickLocation)
+        TextButton(onClick = viewModel::cancelPickingLocation) { Text("Usar el GPS del teléfono") }
+    } else {
+        NearbyMap(viewModel)
+    }
 
     Text("¿Con qué vehículo?", style = MaterialTheme.typography.titleMedium)
-    if (vehicles.isEmpty()) Text("Registrá tu vehículo para pedir ayuda.")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         vehicles.forEach { vehicle ->
             FilterChip(
@@ -128,7 +144,7 @@ private fun RequestForm(viewModel: RiderViewModel) {
             )
         }
     }
-    OutlinedButton(onClick = { addingVehicle = true }) { Text("+ Agregar vehículo") }
+    OutlinedButton(onClick = onAddVehicle) { Text("+ Agregar vehículo") }
 
     if (problems.isNotEmpty()) {
         Text("¿Qué pasó?", style = MaterialTheme.typography.titleMedium)
@@ -150,22 +166,27 @@ private fun RequestForm(viewModel: RiderViewModel) {
     }
     Button(
         onClick = {
-            val wanted = buildList {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-                if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+            val manual = picked
+            if (picking && manual != null) {
+                viewModel.requestHelpAt(manual)
+            } else {
+                val wanted = buildList {
+                    add(Manifest.permission.ACCESS_FINE_LOCATION)
+                    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                permissions.launch(wanted.toTypedArray())
             }
-            permissions.launch(wanted.toTypedArray())
         },
-        enabled = form.vehicleId != null && form.problemCode != null && !form.sending,
+        enabled = form.vehicleId != null && form.problemCode != null && !form.sending && (!picking || picked != null),
         modifier = Modifier.fillMaxWidth(),
-    ) { Text(if (form.sending) "Pidiendo…" else "Pedir mecánico") }
-
-    if (addingVehicle) {
-        AddVehicleDialog(
-            onDismiss = { addingVehicle = false },
-            onSave = { type, brand, model, color, plate ->
-                viewModel.addVehicle(type, brand, model, color, plate) { addingVehicle = false }
+    ) {
+        Text(
+            when {
+                form.sending -> "Pidiendo…"
+                picking && picked == null -> "Marcá tu ubicación en el mapa"
+                picking -> "Pedir mecánico acá"
+                else -> "Pedir mecánico"
             },
         )
     }
@@ -192,6 +213,11 @@ private fun NearbyMap(viewModel: RiderViewModel, center: GeoPoint? = null) {
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Ver mecánicos cerca en el mapa") }
+        if (center == null) {
+            TextButton(onClick = viewModel::startPickingLocation, modifier = Modifier.fillMaxWidth()) {
+                Text("No quiero compartir mi ubicación: marcarla en el mapa")
+            }
+        }
         return
     }
     val me = center ?: here
@@ -453,39 +479,4 @@ private fun StatusChange.description(mechanicName: String?): String = when (to) 
     AssistanceStatus.CANCELLED -> "Pedido cancelado"
     AssistanceStatus.UNMATCHED -> "Ningún mecánico lo tomó a tiempo"
     else -> to.label()
-}
-
-@Composable
-private fun AddVehicleDialog(
-    onDismiss: () -> Unit,
-    onSave: (VehicleType, String, String, String?, String?) -> Unit,
-) {
-    var type by remember { mutableStateOf(VehicleType.BICYCLE) }
-    var brand by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var color by remember { mutableStateOf("") }
-    var plate by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nuevo vehículo") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    VehicleType.entries.forEach {
-                        FilterChip(selected = type == it, onClick = { type = it }, label = { Text(it.label()) })
-                    }
-                }
-                OutlinedTextField(brand, { brand = it }, label = { Text("Marca") }, singleLine = true)
-                OutlinedTextField(model, { model = it }, label = { Text("Modelo") }, singleLine = true)
-                OutlinedTextField(color, { color = it }, label = { Text("Color (opcional)") }, singleLine = true)
-                if (type == VehicleType.MOTORCYCLE) {
-                    OutlinedTextField(plate, { plate = it }, label = { Text("Patente") }, singleLine = true)
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(type, brand, model, color, plate) }) { Text("Guardar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
 }

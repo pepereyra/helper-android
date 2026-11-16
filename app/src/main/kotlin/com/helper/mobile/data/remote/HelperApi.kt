@@ -34,7 +34,7 @@ interface HelperApi {
     suspend fun createClient(@Body body: CreateClientRequest): Response<Unit>
 
     @GET("assistance/api/clients/{id}")
-    suspend fun client(@Path("id") id: String): Response<Unit>
+    suspend fun client(@Path("id") id: String): Response<ClientResponse>
 
     @POST("mechanic/api/mechanics")
     suspend fun createMechanic(@Body body: CreateMechanicRequest): Response<Unit>

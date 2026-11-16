@@ -14,6 +14,7 @@ import com.helper.mobile.domain.model.VehicleType
 import com.helper.mobile.domain.repository.AvailabilityResult
 import com.helper.mobile.domain.repository.MechanicStatusRepository
 import com.helper.mobile.domain.repository.ProfileRepository
+import com.helper.mobile.domain.repository.ProfileSummary
 import com.helper.mobile.domain.repository.RemoteActionResult
 import com.helper.mobile.domain.repository.SessionRepository
 import javax.inject.Inject
@@ -36,6 +37,16 @@ class ProfileRepositoryImpl @Inject constructor(
             // Sin red no se bloquea al usuario: se vuelve a revisar cuando vuelva.
             ApiResult.NoConnection -> ProfileRepository.Check.UNKNOWN
         }
+    }
+
+    override suspend fun summary(session: Session): ProfileSummary? = when (session.role) {
+        Role.RIDER -> (apiCall { api.client(session.userId) } as? ApiResult.Success)?.body?.let {
+            ProfileSummary(name = it.fullName, email = it.email, phone = it.phone)
+        }
+        Role.MECHANIC -> (apiCall { api.mechanic(session.userId) } as? ApiResult.Success)?.body?.let {
+            ProfileSummary(name = it.name, email = it.email, phone = null)
+        }
+        Role.ADMIN -> null
     }
 
     override suspend fun createRider(fullName: String, phone: String): RemoteActionResult =

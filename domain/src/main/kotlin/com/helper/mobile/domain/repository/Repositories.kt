@@ -135,6 +135,9 @@ interface ProfileRepository {
     enum class Check { EXISTS, MISSING, UNKNOWN }
 
     suspend fun check(session: Session): Check
+
+    /** Datos de la cuenta para la pestaña Perfil; null si no hay conexión. */
+    suspend fun summary(session: Session): ProfileSummary?
     suspend fun createRider(fullName: String, phone: String): RemoteActionResult
     suspend fun createMechanic(
         name: String,
@@ -178,3 +181,10 @@ interface JobRepository {
     suspend fun start(assistanceId: String): JobActionResult
     suspend fun complete(assistanceId: String): JobActionResult
 }
+
+/** Lo que muestra la pestaña Perfil. */
+data class ProfileSummary(
+    val name: String,
+    val email: String?,
+    val phone: String?,
+)
