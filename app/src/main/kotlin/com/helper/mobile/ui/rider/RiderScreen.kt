@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.helper.mobile.domain.model.StatusChange
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,10 +74,10 @@ fun RiderScreen(onAddVehicle: () -> Unit, viewModel: RiderViewModel = hiltViewMo
     val showingHistory by viewModel.showingHistory.collectAsStateWithLifecycle()
     val canRetry by viewModel.canRetry.collectAsStateWithLifecycle()
 
+    // Solo el contenido se desplaza: la acción principal queda fija abajo, al alcance del pulgar.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -104,7 +105,7 @@ fun RiderScreen(onAddVehicle: () -> Unit, viewModel: RiderViewModel = hiltViewMo
 }
 
 @Composable
-private fun RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
+private fun ColumnScope.RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
     val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
     val problems by viewModel.problems.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
@@ -113,7 +114,7 @@ private fun RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
 
     // E2: sin vehículo no se puede pedir ayuda; la pantalla vacía lleva a registrarlo.
     if (vehicles.isEmpty()) {
-        EmptyVehicles(onAddVehicle)
+        ScrollingBody { EmptyVehicles(onAddVehicle) }
         return
     }
 
@@ -122,6 +123,7 @@ private fun RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
         viewModel.startNearbyUpdates()
     }
 
+    ScrollingBody {
     if (picking) {
         Text("Marcá dónde estás", style = MaterialTheme.typography.titleMedium)
         Text(
@@ -163,6 +165,7 @@ private fun RequestForm(viewModel: RiderViewModel, onAddVehicle: () -> Unit) {
             label = { Text("Contanos un poco más (opcional)") },
             modifier = Modifier.fillMaxWidth(),
         )
+    }
     }
     Button(
         onClick = {
@@ -243,28 +246,34 @@ private fun hasLocationPermission(context: Context) =
         PackageManager.PERMISSION_GRANTED
 
 @Composable
-private fun TrackingContent(tracking: Tracking, online: Boolean, viewModel: RiderViewModel) {
+private fun ColumnScope.TrackingContent(tracking: Tracking, online: Boolean, viewModel: RiderViewModel) {
     val assistance = tracking.assistance
     val context = LocalContext.current
     when {
         tracking.isExpired -> {
-            Text("Tu pedido venció sin enviarse", style = MaterialTheme.typography.headlineSmall)
-            Text("Pasaron 15 minutos sin conexión, así que no lo mandamos. ¿Todavía necesitás ayuda?")
+            ScrollingBody {
+                Text("Tu pedido venció sin enviarse", style = MaterialTheme.typography.headlineSmall)
+                Text("Pasaron 15 minutos sin conexión, así que no lo mandamos. ¿Todavía necesitás ayuda?")
+            }
             Button(onClick = viewModel::dismissTracking, modifier = Modifier.fillMaxWidth()) { Text("Pedir de nuevo") }
         }
         assistance.status == AssistanceStatus.NOT_SENT && assistance.needsLocationConfirmation -> {
-            Text("Confirmá dónde estás", style = MaterialTheme.typography.headlineSmall)
-            Text("Te moviste desde que pediste ayuda. Antes de enviar el pedido confirmá tu ubicación actual.")
+            ScrollingBody {
+                Text("Confirmá dónde estás", style = MaterialTheme.typography.headlineSmall)
+                Text("Te moviste desde que pediste ayuda. Antes de enviar el pedido confirmá tu ubicación actual.")
+            }
             Button(onClick = viewModel::confirmCurrentLocation, modifier = Modifier.fillMaxWidth()) {
                 Text("Estoy acá, enviar")
             }
             CancelButton(onClick = viewModel::cancel)
         }
         assistance.status == AssistanceStatus.NOT_SENT -> {
-            // Lo más importante: que el repartidor sepa que todavía NO pidió ayuda.
-            Text("Todavía no pediste ayuda", style = MaterialTheme.typography.headlineSmall)
-            val deadline = assistance.confirmedAt.plus(PendingRequestPolicy.EXPIRY).asHour()
-            Text("No hay conexión. Guardamos el pedido y lo enviamos solo cuando vuelva la señal, hasta las $deadline.")
+            ScrollingBody {
+                // Lo más importante: que el repartidor sepa que todavía NO pidió ayuda.
+                Text("Todavía no pediste ayuda", style = MaterialTheme.typography.headlineSmall)
+                val deadline = assistance.confirmedAt.plus(PendingRequestPolicy.EXPIRY).asHour()
+                Text("No hay conexión. Guardamos el pedido y lo enviamos solo cuando vuelva la señal, hasta las $deadline.")
+            }
             Button(onClick = viewModel::retryNow, modifier = Modifier.fillMaxWidth()) { Text("Reintentar ahora") }
             OutlinedButton(
                 onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:"))) },
@@ -277,8 +286,9 @@ private fun TrackingContent(tracking: Tracking, online: Boolean, viewModel: Ride
 }
 
 @Composable
-private fun RemoteTracking(tracking: Tracking, online: Boolean, viewModel: RiderViewModel) {
+private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, viewModel: RiderViewModel) {
     val assistance = tracking.assistance
+    ScrollingBody {
     AssistanceStepper(assistance.status)
     Text(assistance.status.headline(), style = MaterialTheme.typography.headlineSmall)
     if (!online || tracking.isStale) {
@@ -322,18 +332,23 @@ private fun RemoteTracking(tracking: Tracking, online: Boolean, viewModel: Rider
                 mechanic.location?.let { MapPin(it, name) },
             )
             PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
-            mechanic.phone?.let { phone ->
-                val context = LocalContext.current
-                OutlinedButton(
-                    onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Llamar a ${name.substringBefore(' ')}") }
-            }
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
         AssistanceStatus.COMPLETED -> Text("¡Listo! El trabajo quedó terminado.")
         AssistanceStatus.CANCELLED -> Text("El pedido quedó cancelado.")
         else -> Unit
+    }
+    }
+    val onTheWay = assistance.status == AssistanceStatus.MATCHED || assistance.status == AssistanceStatus.IN_PROGRESS
+    val mechanic = assistance.mechanic
+    val phone = mechanic?.phone
+    if (onTheWay && mechanic != null && phone != null) {
+        val context = LocalContext.current
+        val firstName = mechanic.name.ifBlank { "tu mecánico" }.substringBefore(' ')
+        OutlinedButton(
+            onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Llamar a $firstName") }
     }
     if (assistance.status != AssistanceStatus.REQUESTED) {
         TextButton(onClick = viewModel::openHistory, modifier = Modifier.fillMaxWidth()) { Text("Ver historial del pedido") }
@@ -425,9 +440,10 @@ private fun Initials(name: String) {
 
 /** 07 · Historial del pedido: resumen y la hora de cada cambio de estado. Se ve también sin conexión. */
 @Composable
-private fun HistoryContent(tracking: Tracking, viewModel: RiderViewModel) {
+private fun ColumnScope.HistoryContent(tracking: Tracking, viewModel: RiderViewModel) {
     val assistance = tracking.assistance
     val history by viewModel.history.collectAsStateWithLifecycle()
+    ScrollingBody {
     TextButton(onClick = viewModel::closeHistory) { Text("← Volver al pedido") }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -473,9 +489,26 @@ private fun HistoryContent(tracking: Tracking, viewModel: RiderViewModel) {
             Text(change.at.asHour(), style = MaterialTheme.typography.bodyMedium)
         }
     }
+    }
     if (assistance.status.isFinal) {
         OutlinedButton(onClick = viewModel::dismissTracking, modifier = Modifier.fillMaxWidth()) { Text("Volver al inicio") }
     }
+}
+
+/**
+ * Lo que se desplaza de cada pantalla. Ocupa todo el alto libre, así los botones que van después quedan fijos
+ * abajo, al alcance del pulgar (decisión de la preentrega).
+ */
+@Composable
+private fun ColumnScope.ScrollingBody(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content,
+    )
 }
 
 private fun StatusChange.description(mechanicName: String?): String = when (to) {

@@ -92,54 +92,62 @@ class LoginViewModel @Inject constructor(
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Los campos se desplazan; la acción principal queda fija abajo, al alcance del pulgar.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("helper", style = MaterialTheme.typography.headlineLarge)
-        Text("Un mecánico hasta donde te quedaste", style = MaterialTheme.typography.bodyLarge)
-        if (state.creatingAccount) {
-            Text("¿Cómo vas a usar Helper?", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = state.role == Role.RIDER,
-                    onClick = { viewModel.onRole(Role.RIDER) },
-                    label = { Text("Necesito ayuda (repartidor)") },
-                )
-                FilterChip(
-                    selected = state.role == Role.MECHANIC,
-                    onClick = { viewModel.onRole(Role.MECHANIC) },
-                    label = { Text("Soy mecánico") },
-                )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("helper", style = MaterialTheme.typography.headlineLarge)
+            Text("Un mecánico hasta donde te quedaste", style = MaterialTheme.typography.bodyLarge)
+            if (state.creatingAccount) {
+                Text("¿Cómo vas a usar Helper?", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.role == Role.RIDER,
+                        onClick = { viewModel.onRole(Role.RIDER) },
+                        label = { Text("Necesito ayuda (repartidor)") },
+                    )
+                    FilterChip(
+                        selected = state.role == Role.MECHANIC,
+                        onClick = { viewModel.onRole(Role.MECHANIC) },
+                        label = { Text("Soy mecánico") },
+                    )
+                }
+                if (state.role == Role.MECHANIC) {
+                    Text(
+                        "Tu cuenta queda en revisión hasta que la aprobemos. Recién ahí vas a ver pedidos.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
-            if (state.role == Role.MECHANIC) {
-                Text(
-                    "Tu cuenta queda en revisión hasta que la aprobemos. Recién ahí vas a ver pedidos.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+            OutlinedTextField(
+                value = state.email,
+                onValueChange = viewModel::onEmail,
+                label = { Text("Email") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.password,
+                onValueChange = viewModel::onPassword,
+                label = { Text(if (state.creatingAccount) "Contraseña (8 caracteres o más)" else "Contraseña") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
-        OutlinedTextField(
-            value = state.email,
-            onValueChange = viewModel::onEmail,
-            label = { Text("Email") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = state.password,
-            onValueChange = viewModel::onPassword,
-            label = { Text(if (state.creatingAccount) "Contraseña (8 caracteres o más)" else "Contraseña") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(
             onClick = viewModel::submit,
             enabled = !state.loading,

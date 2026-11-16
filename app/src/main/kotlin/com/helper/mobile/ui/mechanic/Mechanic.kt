@@ -350,7 +350,6 @@ fun MechanicJobScreen(viewModel: MechanicViewModel = hiltViewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -362,7 +361,14 @@ fun MechanicJobScreen(viewModel: MechanicViewModel = hiltViewModel()) {
             Text("No tenés un trabajo en curso.", style = MaterialTheme.typography.titleMedium)
             Text("Cuando tomes un pedido desde la pestaña Pedidos, lo vas a ver acá con la ruta hasta el repartidor.")
         } else {
-            TripCard(current, me, online, viewModel)
+            // La tarjeta se desplaza; el botón del paso siguiente queda fijo abajo, al alcance del pulgar.
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) { TripCard(current, me, viewModel) }
+            JobActions(current, online, viewModel)
         }
     }
 }
@@ -420,8 +426,7 @@ private fun OfferMap(offer: Offer, me: GeoPoint?, height: Dp = 180.dp) {
  * En curso: "Terminar el trabajo". Terminado: volver a los pedidos. Cada paso lo ve el repartidor en su seguimiento.
  */
 @Composable
-private fun TripCard(job: MechanicJob, me: GeoPoint?, online: Boolean, viewModel: MechanicViewModel) {
-    val advancing by viewModel.advancing.collectAsStateWithLifecycle()
+private fun TripCard(job: MechanicJob, me: GeoPoint?, viewModel: MechanicViewModel) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${job.problemLabel} · ${job.vehicleType.label()}", style = MaterialTheme.typography.titleMedium)
@@ -438,18 +443,24 @@ private fun TripCard(job: MechanicJob, me: GeoPoint?, online: Boolean, viewModel
                 }
                 else -> Text(job.status.label(), style = MaterialTheme.typography.headlineSmall)
             }
-            val next = AdvanceJobUseCase.nextStepLabel(job.status)
-            if (next != null) {
-                Button(
-                    onClick = viewModel::advance,
-                    enabled = online && !advancing,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (advancing) "Un momento…" else next) }
-                if (!online) Text("Necesitás conexión para avisar el avance.", style = MaterialTheme.typography.bodySmall)
-            } else {
-                Button(onClick = viewModel::closeJob, modifier = Modifier.fillMaxWidth()) { Text("Volver a los pedidos") }
-            }
         }
+    }
+}
+
+/** La acción principal del trabajo: empezar, terminar o volver a los pedidos. */
+@Composable
+private fun JobActions(job: MechanicJob, online: Boolean, viewModel: MechanicViewModel) {
+    val advancing by viewModel.advancing.collectAsStateWithLifecycle()
+    val next = AdvanceJobUseCase.nextStepLabel(job.status)
+    if (next != null) {
+        if (!online) Text("Necesitás conexión para avisar el avance.", style = MaterialTheme.typography.bodySmall)
+        Button(
+            onClick = viewModel::advance,
+            enabled = online && !advancing,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (advancing) "Un momento…" else next) }
+    } else {
+        Button(onClick = viewModel::closeJob, modifier = Modifier.fillMaxWidth()) { Text("Volver a los pedidos") }
     }
 }
 

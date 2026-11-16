@@ -124,52 +124,60 @@ fun ProfileScreen(role: Role, onDone: () -> Unit, onLogout: () -> Unit, viewMode
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         viewModel.save(role, onDone)
     }
+    // Los campos se desplazan; la acción principal queda fija abajo, al alcance del pulgar.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Completá tu perfil", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(
-            value = state.name,
-            onValueChange = viewModel::onName,
-            label = { Text(if (role == Role.MECHANIC) "Nombre o nombre del taller" else "Nombre y apellido") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = state.phone,
-            onValueChange = viewModel::onPhone,
-            label = { Text("Teléfono") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (role == Role.MECHANIC) {
-            Text("¿Qué arreglos hacés?", style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.skillOptions.forEach { option ->
-                    FilterChip(
-                        selected = option.code in state.skills,
-                        onClick = { viewModel.toggleSkill(option.code) },
-                        label = { Text(option.label) },
-                    )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Completá tu perfil", style = MaterialTheme.typography.headlineSmall)
+            OutlinedTextField(
+                value = state.name,
+                onValueChange = viewModel::onName,
+                label = { Text(if (role == Role.MECHANIC) "Nombre o nombre del taller" else "Nombre y apellido") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.phone,
+                onValueChange = viewModel::onPhone,
+                label = { Text("Teléfono") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (role == Role.MECHANIC) {
+                Text("¿Qué arreglos hacés?", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.skillOptions.forEach { option ->
+                        FilterChip(
+                            selected = option.code in state.skills,
+                            onClick = { viewModel.toggleSkill(option.code) },
+                            label = { Text(option.label) },
+                        )
+                    }
+                }
+                Text("¿Qué vehículos atendés?", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VehicleType.entries.forEach { type ->
+                        FilterChip(
+                            selected = type in state.vehicleTypes,
+                            onClick = { viewModel.toggleVehicle(type) },
+                            label = { Text(type.label()) },
+                        )
+                    }
                 }
             }
-            Text("¿Qué vehículos atendés?", style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                VehicleType.entries.forEach { type ->
-                    FilterChip(
-                        selected = type in state.vehicleTypes,
-                        onClick = { viewModel.toggleVehicle(type) },
-                        label = { Text(type.label()) },
-                    )
-                }
-            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(
             onClick = {
                 if (role == Role.MECHANIC) {
