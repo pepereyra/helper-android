@@ -64,6 +64,8 @@ data class Assistance(
     val lastSyncedAt: Instant? = null,
     /** El repartidor se movió mientras el pedido esperaba: hay que reconfirmar la ubicación antes de enviar. */
     val needsLocationConfirmation: Boolean = false,
+    /** Calificación de 1 a 5 que dio el repartidor al terminar; null si todavía no calificó. */
+    val rating: Int? = null,
 )
 
 /** Pedido ofrecido a un mecánico cercano. Lo toma el primero que acepta. */

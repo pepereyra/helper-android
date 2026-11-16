@@ -1,5 +1,6 @@
 package com.helper.mobile.ui.rider
 
+import com.helper.mobile.domain.repository.RemoteActionResult
 import com.helper.mobile.domain.repository.RouteRepository
 import com.helper.mobile.domain.model.Route
 import kotlinx.coroutines.Job
@@ -162,7 +163,7 @@ class RiderViewModel @Inject constructor(
 
     private suspend fun updateMechanicRoute() {
         val assistance = tracking.value?.assistance ?: return
-        val onTheWay = assistance.status == AssistanceStatus.MATCHED || assistance.status == AssistanceStatus.IN_PROGRESS
+        val onTheWay = assistance.status == AssistanceStatus.MATCHED
         val mechanicAt = assistance.mechanic?.location
         if (!onTheWay || mechanicAt == null) {
             mechanicRoute.value = null
@@ -179,6 +180,22 @@ class RiderViewModel @Inject constructor(
 
     private fun selectedVehicleType(): VehicleType? =
         vehicles.value.firstOrNull { it.id == form.value.vehicleId }?.type
+
+    /** True mientras se envía la calificación. */
+    val rating = MutableStateFlow(false)
+
+    fun rate(score: Int, comment: String) {
+        val localId = tracking.value?.assistance?.localId ?: return
+        rating.value = true
+        viewModelScope.launch {
+            message.value = when (val result = assistances.rate(localId, score, comment)) {
+                RemoteActionResult.Done -> null
+                RemoteActionResult.NoConnection -> "Para calificar necesitás conexión."
+                is RemoteActionResult.Rejected -> result.reason
+            }
+            rating.value = false
+        }
+    }
 
     fun selectVehicle(id: String) = form.update { it.copy(vehicleId = id, problemCode = null) }
     fun selectProblem(code: String) = form.update { it.copy(problemCode = code) }

@@ -1,5 +1,6 @@
 package com.helper.mobile.data.repository
 
+import com.helper.mobile.domain.repository.MechanicState
 import com.helper.mobile.data.remote.ApiResult
 import com.helper.mobile.data.remote.AvailabilityRequest
 import com.helper.mobile.data.remote.CreateClientRequest
@@ -78,6 +79,12 @@ class ProfileRepositoryImpl @Inject constructor(
             ApiResult.NoConnection -> AvailabilityResult.NoConnection
             is ApiResult.HttpError -> if (result.status == 403) AvailabilityResult.NotApproved else AvailabilityResult.Rejected(result.reason())
         }
+    }
+
+    override suspend fun current(): MechanicState? {
+        val id = sessions.currentSession()?.userId ?: return null
+        val body = (apiCall { api.mechanic(id) } as? ApiResult.Success)?.body ?: return null
+        return MechanicState(body.available, GeoPoint(body.latitude, body.longitude))
     }
 
     private fun ApiResult<Unit>.toAction(): RemoteActionResult = when (this) {

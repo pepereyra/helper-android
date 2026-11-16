@@ -2,6 +2,8 @@
 
 package com.helper.mobile.ui
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,7 +106,14 @@ class AppViewModel @Inject constructor(
 fun HelperApp(viewModel: AppViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Scaffold { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        // Con el teclado abierto el contenido se achica: así el botón fijo abajo queda arriba del teclado.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding(),
+        ) {
             when (val current = state) {
                 AppState.Loading -> LoadingSkeleton()
                 AppState.LoggedOut -> LoginScreen()

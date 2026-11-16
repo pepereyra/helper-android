@@ -76,7 +76,12 @@ data class AssistanceResponse(
     val vehicleType: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val rating: Int? = null,
 )
+
+/** POST /api/assistances/{id}/rating: de 1 a 5, con un comentario opcional. */
+@Serializable
+data class RateRequest(val score: Int, val comment: String? = null)
 
 /** GET /api/clients/{id}: el perfil del repartidor. */
 @Serializable
@@ -98,6 +103,7 @@ data class MechanicResponse(
     val longitude: Double,
     val rating: Double? = null,
     val ratingCount: Int? = null,
+    val available: Boolean = false,
 )
 
 /** GET /api/mechanics/nearby: mecánicos disponibles cerca, sin datos de contacto. */

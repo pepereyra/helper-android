@@ -2,6 +2,8 @@
 
 package com.helper.mobile.ui.rider
 
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.helper.mobile.ui.common.asEta
 import com.helper.mobile.ui.common.PinsMap
 import com.helper.mobile.ui.common.MapPin
@@ -314,12 +316,17 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(name, style = MaterialTheme.typography.titleMedium)
                         val route by viewModel.mechanicRoute.collectAsStateWithLifecycle()
-                        // La ruta se recalcula mientras viene, así que su tiempo es más actual que el de la asignación.
-                        (route?.durationMinutes ?: mechanic.etaMinutes)?.let {
-                            Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
+                        val coming = assistance.status == AssistanceStatus.MATCHED
+                        if (coming) {
+                            // La ruta se recalcula mientras viene, así que su tiempo es más actual que el de la asignación.
+                            (route?.durationMinutes ?: mechanic.etaMinutes)?.let {
+                                Text("Llega en unos ${it.asEta()}", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        } else {
+                            Text("Ya llegó y está trabajando en tu vehículo", style = MaterialTheme.typography.bodyLarge)
                         }
                         val details = listOfNotNull(
-                            (route?.distanceMeters ?: mechanic.distanceMeters)?.let { "a ${it.asDistance()}" },
+                            (route?.distanceMeters ?: mechanic.distanceMeters)?.takeIf { coming }?.let { "a ${it.asDistance()}" },
                             mechanic.rating?.let { "%.1f de 5".format(it) },
                         ).joinToString(" · ")
                         if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
@@ -331,10 +338,16 @@ private fun ColumnScope.RemoteTracking(tracking: Tracking, online: Boolean, view
                 MapPin(assistance.location, "Vos", isMain = true),
                 mechanic.location?.let { MapPin(it, name) },
             )
-            PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
+            // Cuando ya llegó, el mapa no aporta: solo se muestra mientras viene.
+            if (assistance.status == AssistanceStatus.MATCHED) {
+                PinsMap(pins, description = "Mapa: vos, $name y el camino", route = route?.points.orEmpty())
+            }
         }
         AssistanceStatus.UNMATCHED -> Text("Ningún mecánico cercano aceptó a tiempo. Podés volver a pedir.")
-        AssistanceStatus.COMPLETED -> Text("¡Listo! El trabajo quedó terminado.")
+        AssistanceStatus.COMPLETED -> {
+            Text("¡Listo! El trabajo quedó terminado.")
+            RatingCard(assistance.mechanic?.name, assistance.rating, viewModel)
+        }
         AssistanceStatus.CANCELLED -> Text("El pedido quedó cancelado.")
         else -> Unit
     }
@@ -520,3 +533,48 @@ private fun StatusChange.description(mechanicName: String?): String = when (to) 
     AssistanceStatus.UNMATCHED -> "Ningún mecánico lo tomó a tiempo"
     else -> to.label()
 }
+
+/** Al terminar, el repartidor califica al mecánico de 1 a 5, con un comentario opcional. */
+@Composable
+private fun RatingCard(mechanicName: String?, rating: Int?, viewModel: RiderViewModel) {
+    val name = mechanicName?.ifBlank { null } ?: "tu mecánico"
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (rating != null) {
+                Text("Calificaste a $name con $rating de 5. ¡Gracias!", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "★".repeat(rating) + "☆".repeat(5 - rating),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                return@Column
+            }
+            var score by rememberSaveable { mutableIntStateOf(0) }
+            var comment by rememberSaveable { mutableStateOf("") }
+            val sending by viewModel.rating.collectAsStateWithLifecycle()
+            Text("¿Cómo te fue con $name?", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                (1..5).forEach { value ->
+                    TextButton(
+                        onClick = { score = value },
+                        modifier = Modifier.semantics { contentDescription = "$value de 5" },
+                    ) {
+                        Text(if (value <= score) "★" else "☆", style = MaterialTheme.typography.headlineMedium)
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = comment,
+                onValueChange = { if (it.length <= 500) comment = it },
+                label = { Text("Comentario (opcional)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { viewModel.rate(score, comment) },
+                enabled = score > 0 && !sending,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (sending) "Enviando…" else "Calificar") }
+        }
+    }
+}
+

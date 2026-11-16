@@ -97,6 +97,7 @@ class FakeAssistances : AssistanceRepository {
 
     override suspend fun cancelRemote(assistance: Assistance): RemoteActionResult = cancelResult
     override suspend fun refresh(localId: String): RemoteActionResult = RemoteActionResult.Done
+    override suspend fun rate(localId: String, score: Int, comment: String?): RemoteActionResult = RemoteActionResult.Done
     override fun observeHistory(localId: String): Flow<List<StatusChange>> = MutableStateFlow(emptyList())
     override suspend fun refreshHistory(localId: String): RemoteActionResult = RemoteActionResult.Done
 }
